@@ -1,4 +1,7 @@
 #include "pkcs11.h"
+#include <nss3/nss.h>
+#include <nss3/pkcs11n.h>
+#include <nss3/certt.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,7 +10,6 @@ extern CK_FUNCTION_LIST pkcs11_function_list;
 
 static CK_UTF8CHAR manufacturerID[] =		"Yuuma Sato                      ";
 static CK_UTF8CHAR libraryDescription[] =	"CertModule PKCS#11 API          ";
-static FILE *fp;
 
 static unsigned char sato_certificate[] = {
 	0x30,0x82,0x03,0xef,0x30,0x82,0x01,0xd7,0x02,0x01,0x01,0x30,0x0d,0x06,0x09,0x2a,
@@ -75,6 +77,45 @@ static unsigned char sato_certificate[] = {
 	0xa8,0x78,0xaf,0x46,0x02,0xbe,0xdb,0xf6,0x2d,0xd1,0xf0,0x32,0x96,0xe3,0x24,0x1a,
 	0x82,0x4a,0xdd};
 
+static unsigned char issuer_name[] = {
+	0x30,0x6C,0x31,0x0B,0x30,0x09,0x06,0x03,
+	0x55,0x04,0x06,0x13,0x02,0x42,0x52,0x31,
+	0x0B,0x30,0x09,0x06,0x03,0x55,0x04,0x08,
+	0x0C,0x02,0x53,0x50,0x31,0x0E,0x30,0x0C,
+	0x06,0x03,0x55,0x04,0x07,0x0C,0x05,0x43,
+	0x61,0x6D,0x70,0x73,0x31,0x1C,0x30,0x1A,
+	0x06,0x03,0x55,0x04,0x0A,0x0C,0x13,0x44,
+	0x65,0x66,0x61,0x75,0x6C,0x74,0x20,0x43,
+	0x6F,0x6D,0x70,0x61,0x6E,0x79,0x20,0x4C,
+	0x74,0x64,0x31,0x0D,0x30,0x0B,0x06,0x03,
+	0x55,0x04,0x0B,0x0C,0x04,0x48,0x6F,0x6D,
+	0x65,0x31,0x13,0x30,0x11,0x06,0x03,0x55,
+	0x04,0x03,0x0C,0x0A,0x41,0x75,0x74,0x6F,
+	0x72,0x69,0x64,0x61,0x64,0x65
+};
+
+static unsigned char subject_name[] = {
+	0x30,0x81,0x92,0x31,0x0B,0x30,0x09,0x06,
+	0x03,0x55,0x04,0x06,0x13,0x02,0x42,0x52,
+	0x31,0x0B,0x30,0x09,0x06,0x03,0x55,0x04,
+	0x08,0x0C,0x02,0x53,0x50,0x31,0x0E,0x30, 
+	0x0C,0x06,0x03,0x55,0x04,0x07,0x0C,0x05,
+	0x43,0x61,0x6D,0x70,0x73,0x31,0x1C,0x30, 
+	0x1A,0x06,0x03,0x55,0x04,0x0A,0x0C,0x13,
+	0x44,0x65,0x66,0x61,0x75,0x6C,0x74,0x20, 
+	0x43,0x6F,0x6D,0x70,0x61,0x6E,0x79,0x20,
+	0x4C,0x74,0x64,0x31,0x0F,0x30,0x0D,0x06, 
+	0x03,0x55,0x04,0x0B,0x0C,0x06,0x51,0x75,
+	0x61,0x72,0x74,0x6F,0x31,0x13,0x30,0x11, 
+	0x06,0x03,0x55,0x04,0x03,0x0C,0x0A,0x53,
+	0x61,0x74,0x6F,0x20,0x59,0x75,0x75,0x6D, 
+	0x61,0x31,0x22,0x30,0x20,0x06,0x09,0x2A,
+	0x86,0x48,0x86,0xF7,0x0D,0x01,0x09,0x01, 
+	0x16,0x13,0x73,0x61,0x74,0x6F,0x79,0x75,
+	0x75,0x6D,0x61,0x40,0x67,0x6D,0x61,0x69, 
+	0x6C,0x2E,0x63,0x6F,0x6D
+};
+
 /* Internal Objects */
 
 /* Hard coded certificate */
@@ -82,48 +123,89 @@ static unsigned char sato_certificate[] = {
 static CK_OBJECT_HANDLE h_hard_cert = HARD_CERT_HANDLE;
 static CK_ATTRIBUTE_PTR obj_hard_cert;
 
-CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
+static CK_ULONG already_searched;
+
+CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 {
 	CK_RV rv = CKR_OK;
+	CK_ULONG i;
+	CK_ULONG att_count;
 	int d;
-	char *path;
 	CK_ATTRIBUTE_PTR obj;
 
-	path = malloc(20);
-	sprintf(path, "/tmp/evo_l%dl.log", d);
-	fp = fopen(path, "a");
-	fprintf(fp, "%s\n", __func__);
+	CK_BBOOL b;
+	char *sato_certificate_pem;
+	CERTCertificate *cert = NULL;
 
 	/* Create hardcoded certificate */
-	obj = malloc(sizeof(CK_ATTRIBUTE) * 4);
+	att_count = 10;
+	obj = malloc (sizeof (CK_ATTRIBUTE) * att_count);
 
-	obj[0].type = CKA_CLASS;
-	obj[0].ulValueLen = sizeof(CK_OBJECT_CLASS);
-	obj[0].pValue = malloc(sizeof(CK_OBJECT_CLASS));
-	*(CK_OBJECT_CLASS *)(obj[0].pValue) = CKO_CERTIFICATE;
+	i = 0;
+	obj[i].type = CKA_TOKEN;
+	obj[i].ulValueLen = sizeof (CK_BBOOL);
+	obj[i].pValue = malloc (sizeof (CK_BBOOL));
+	*(CK_OBJECT_CLASS *)(obj[i].pValue) = CK_TRUE;
 
-	obj[1].type = CKA_CERTIFICATE_TYPE;
-	obj[1].ulValueLen = sizeof(CK_CERTIFICATE_TYPE);
-	obj[1].pValue = malloc(sizeof(CK_CERTIFICATE_TYPE));
-	*(CK_CERTIFICATE_TYPE *)(obj[1].pValue) = CKC_X_509;
+	i = 1;
+	obj[i].type = CKA_CLASS;
+	obj[i].ulValueLen = sizeof (CK_OBJECT_CLASS);
+	obj[i].pValue = malloc (sizeof (CK_OBJECT_CLASS));
+	*(CK_OBJECT_CLASS *)(obj[i].pValue) = CKO_CERTIFICATE;
 
-	obj[2].type = CKA_TRUSTED;
-	obj[2].ulValueLen = sizeof(CK_BBOOL);
-	obj[2].pValue = malloc(sizeof(CK_BBOOL));
-	*(CK_BBOOL *)(obj[2].pValue) = CK_TRUE;
+	i = 2;
+	obj[i].type = CKA_CERTIFICATE_TYPE;
+	obj[i].ulValueLen = sizeof (CK_CERTIFICATE_TYPE);
+	obj[i].pValue = malloc (sizeof (CK_CERTIFICATE_TYPE));
+	*(CK_CERTIFICATE_TYPE *)(obj[i].pValue) = CKC_X_509;
 
-	obj[2].type = CKA_CERTIFICATE_CATEGORY;
-	obj[2].ulValueLen = sizeof(CK_ULONG);
-	obj[2].pValue = malloc(sizeof(CK_ULONG));
-	*(CK_ULONG	*)(obj[2].pValue) = 0;
+	i = 3;
+	obj[i].type = CKA_TRUSTED;
+	obj[i].ulValueLen = sizeof (CK_BBOOL);
+	obj[i].pValue = malloc (sizeof (CK_BBOOL));
+	*(CK_BBOOL *)(obj[i].pValue) = CK_TRUE;
 
-	obj[3].type = CKA_CHECK_VALUE;
-	obj[3].ulValueLen = 3;
-	obj[3].pValue = malloc(3);
+	i = 4;
+	obj[i].type = CKA_CERTIFICATE_CATEGORY;
+	obj[i].ulValueLen = sizeof (CK_ULONG);
+	obj[i].pValue = malloc (sizeof (CK_ULONG));
+	*(CK_ULONG	*)(obj[i].pValue) = 0;
+
+	i = 5;
+	obj[i].type = CKA_CHECK_VALUE;
+	obj[i].ulValueLen = 3;
+	obj[i].pValue = malloc (3);
 	// 3 first bytes of sha-1
 	// *(CK_BYTE_PTR_PTRobj[3].pValue) = 0;
 
 	/* add X509 Certificate Object Attributes, Table 24 */
+
+	i = 6;
+	obj[i].type = CKA_ISSUER;
+	obj[i].ulValueLen = strlen (issuer_name);
+	obj[i].pValue = malloc (obj[i].ulValueLen);
+	memcpy (obj[i].pValue, issuer_name, obj[i].ulValueLen);
+	
+	i = 7;
+	obj[i].type = CKA_VALUE;
+	obj[i].ulValueLen = 1011; 
+	obj[i].pValue = malloc (obj[i].ulValueLen);
+	memcpy (obj[i].pValue, sato_certificate, obj[i].ulValueLen);
+	
+	i = 8;
+	obj[i].type = CKA_SUBJECT;
+	obj[i].ulValueLen = strlen (subject_name);
+	obj[i].pValue = malloc (obj[i].ulValueLen);
+	memcpy (obj[i].pValue, subject_name, obj[i].ulValueLen);
+	
+	i = 9;
+	obj[i].type = CKA_SERIAL_NUMBER;
+	obj[i].ulValueLen = 3;
+	obj[i].pValue = malloc (obj[i].ulValueLen);
+	((CK_ULONG_PTR) obj[i].pValue)[0] = 0x02;
+	((CK_ULONG_PTR) obj[i].pValue)[1] = 0x01;
+	((CK_ULONG_PTR) obj[i].pValue)[2] = 0x01;
+	
 
 	obj_hard_cert = obj;
 
@@ -132,19 +214,18 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
 	return rv;
 }
 
-CK_RV C_Finalize(CK_VOID_PTR pReserved)
+CK_RV C_Finalize (CK_VOID_PTR pReserved)
 {
 	CK_RV rv = CKR_OK;
 	//Close connection with addressbook sources
-	fprintf(fp, "%s\n", __func__);
-	fclose(fp);
 
 	/* Free hardcoded_certificate */
+	
 	
 	return rv;
 }
 
-CK_RV C_GetFunctionList(CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
+CK_RV C_GetFunctionList (CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
 {
 	if (ppFunctionList == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
@@ -153,21 +234,21 @@ CK_RV C_GetFunctionList(CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
 	return CKR_OK;
 }
 
-CK_RV C_GetInfo(CK_INFO_PTR pInfo)
+CK_RV C_GetInfo (CK_INFO_PTR pInfo)
 {
 	CK_RV rv = CKR_OK;
 
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
-	memset(pInfo, 0, sizeof(CK_INFO));
+	memset (pInfo, 0, sizeof(CK_INFO));
 	pInfo->cryptokiVersion.major = 2;
-	pInfo->cryptokiVersion.minor = 11;
+	pInfo->cryptokiVersion.minor = 20;
 
-	memcpy(pInfo->manufacturerID,
+	memcpy (pInfo->manufacturerID,
 		  manufacturerID,
 		  32);
-	memcpy(pInfo->libraryDescription,
+	memcpy (pInfo->libraryDescription,
 		  libraryDescription,
 		  32);
 	pInfo->libraryVersion.major = 0;
@@ -176,11 +257,10 @@ CK_RV C_GetInfo(CK_INFO_PTR pInfo)
 	return rv;
 }
 
-CK_RV C_GetSlotList(CK_BBOOL       tokenPresent,  
+CK_RV C_GetSlotList (CK_BBOOL tokenPresent,  
 		    CK_SLOT_ID_PTR pSlotList, 
 		    CK_ULONG_PTR   pulCount)   
 {
-	fprintf(fp, "%s\n", __func__);
 	if (pulCount == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
@@ -201,18 +281,17 @@ CK_RV C_GetSlotList(CK_BBOOL       tokenPresent,
 }
 
 
-CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
+CK_RV C_GetSlotInfo (CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 {
 
-	fprintf(fp, "%s\n", __func__);
 	CK_UTF8CHAR slotDescription[] = "Slot unico do modulo                                            "; 
 
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
-	memset(pInfo, 0, sizeof(CK_SLOT_INFO));
-	memcpy(pInfo->slotDescription, slotDescription, 64); 
-	memcpy(pInfo->manufacturerID, manufacturerID, 32); 
+	memset (pInfo, 0, sizeof (CK_SLOT_INFO));
+	memcpy (pInfo->slotDescription, slotDescription, 64); 
+	memcpy (pInfo->manufacturerID, manufacturerID, 32); 
 	pInfo->flags = CKF_TOKEN_PRESENT;
 	pInfo->hardwareVersion.major = 0;
 	pInfo->hardwareVersion.minor = 0;
@@ -222,32 +301,31 @@ CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 	return CKR_OK;
 }
 
-CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
+CK_RV C_GetTokenInfo (CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
 {
-	fprintf(fp, "%s\n", __func__);
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
-	CK_UTF8CHAR label[] =	"label token addressbook         ";
-	CK_UTF8CHAR model[] =	"modelo virtual a";
+	CK_UTF8CHAR label[] =	"Token Addressbook               ";
+	CK_UTF8CHAR model[] =	"modelo virtual  ";
 	CK_UTF8CHAR serial[] =	"0123456789ABCDEF";
 
-	memset(pInfo, 0, sizeof(CK_TOKEN_INFO));
-	memcpy(pInfo->label,label , 32); 
-	memcpy(pInfo->manufacturerID, manufacturerID, 32); 
-	memcpy(pInfo->model, model, 16); 
-	memcpy(pInfo->serialNumber, serial, 16); 
-	pInfo->flags = CKF_TOKEN_INITIALIZED;
+	memset (pInfo, 0, sizeof (CK_TOKEN_INFO));
+	memcpy (pInfo->label,label , 32); 
+	memcpy (pInfo->manufacturerID, manufacturerID, 32); 
+	memcpy (pInfo->model, model, 16); 
+	memcpy (pInfo->serialNumber, serial, 16); 
+	pInfo->flags = 0;
 	pInfo->ulMaxSessionCount = 0;
 	pInfo->ulSessionCount = 0;
 	pInfo->ulMaxRwSessionCount = 0;
 	pInfo->ulRwSessionCount = 0;
 	pInfo->ulMaxPinLen = 8;
 	pInfo->ulMinPinLen = 6;
-	pInfo->ulTotalPublicMemory = (CK_ULONG) 1000000;
-	pInfo->ulFreePublicMemory = (CK_ULONG) 1000000;
-	pInfo->ulTotalPrivateMemory = (CK_ULONG) 1000000;
-	pInfo->ulFreePrivateMemory = (CK_ULONG) 1000000;
+	pInfo->ulTotalPublicMemory = CK_UNAVAILABLE_INFORMATION;
+	pInfo->ulFreePublicMemory = CK_UNAVAILABLE_INFORMATION;
+	pInfo->ulTotalPrivateMemory = CK_UNAVAILABLE_INFORMATION;
+	pInfo->ulFreePrivateMemory = CK_UNAVAILABLE_INFORMATION;
 	pInfo->hardwareVersion.major = 0;
 	pInfo->hardwareVersion.minor = 0;
 	pInfo->firmwareVersion.major = 0;
@@ -256,40 +334,35 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
 	return CKR_OK;
 }
 
-
-
 CK_RV C_GetMechanismList(CK_SLOT_ID slotID,
 			 CK_MECHANISM_TYPE_PTR pMechanismList,
                          CK_ULONG_PTR pulCount)
 {
 
-	CK_ULONG ulCount = 0;
+	CK_ULONG i;
 
-	fprintf(fp, "%s\n", __func__);
 	if (pulCount == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
 	if (pMechanismList == NULL_PTR){
-		*pulCount = ulCount;	
+		*pulCount = 0;
 		return CKR_OK;
 	}
 
-	*pulCount = ulCount;	
-
+	*pulCount = 0;
 
 	return CKR_OK;
 }
 
-CK_RV C_GetMechanismInfo(CK_SLOT_ID slotID,
+CK_RV C_GetMechanismInfo (CK_SLOT_ID slotID,
 			 CK_MECHANISM_TYPE type,
 			 CK_MECHANISM_INFO_PTR pInfo)
 {
 
-	fprintf(fp, "%s\n", __func__);
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_InitToken(CK_SLOT_ID slotID,
+CK_RV C_InitToken (CK_SLOT_ID slotID,
 		  CK_CHAR_PTR pPin,
 		  CK_ULONG ulPinLen,
 		  CK_CHAR_PTR pLabel)
@@ -297,14 +370,14 @@ CK_RV C_InitToken(CK_SLOT_ID slotID,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_WaitForSlotEvent(CK_FLAGS flags, 
+CK_RV C_WaitForSlotEvent (CK_FLAGS flags, 
 			 CK_SLOT_ID_PTR pSlot, 
 			 CK_VOID_PTR pReserved)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_OpenSession(CK_SLOT_ID slotID,
+CK_RV C_OpenSession (CK_SLOT_ID slotID,
 		    CK_FLAGS flags,
 		    CK_VOID_PTR pApplication,
 		    CK_NOTIFY Notify,
@@ -324,21 +397,21 @@ CK_RV C_OpenSession(CK_SLOT_ID slotID,
 }
 
 
-CK_RV C_CloseSession(CK_SESSION_HANDLE hSession)
+CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
 {			
 	CK_RV rv;
 
 	return CKR_OK;
 }
 
-CK_RV C_CloseAllSessions(CK_SLOT_ID slotID)
+CK_RV C_CloseAllSessions (CK_SLOT_ID slotID)
 {			
 	CK_RV rv = CKR_OK;
 
 	return rv;
 }
 
-CK_RV C_GetSessionInfo(CK_SESSION_HANDLE hSession,
+CK_RV C_GetSessionInfo (CK_SESSION_HANDLE hSession,
 		       CK_SESSION_INFO_PTR pInfo)
 {			
 	CK_RV rv;
@@ -354,14 +427,14 @@ CK_RV C_GetSessionInfo(CK_SESSION_HANDLE hSession,
 	return CKR_OK;
 }
 
-CK_RV C_GetOperationState(CK_SESSION_HANDLE hSession,
+CK_RV C_GetOperationState (CK_SESSION_HANDLE hSession,
 			  CK_BYTE_PTR pOperationState,
 			  CK_ULONG_PTR pulOperationStateLen)
 {		
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_SetOperationState(CK_SESSION_HANDLE hSession,
+CK_RV C_SetOperationState (CK_SESSION_HANDLE hSession,
 			  CK_BYTE_PTR pOperationState,
 			  CK_ULONG ulOperationStateLen,
 			  CK_OBJECT_HANDLE hEncryptionKey,
@@ -370,26 +443,26 @@ CK_RV C_SetOperationState(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_Login(CK_SESSION_HANDLE hSession,
+CK_RV C_Login (CK_SESSION_HANDLE hSession,
 	      CK_USER_TYPE userType,
 	      CK_CHAR_PTR pPin,
 	      CK_ULONG ulPinLen)
 {
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	return CKR_OK;
 }
 
-CK_RV C_Logout(CK_SESSION_HANDLE hSession)
+CK_RV C_Logout (CK_SESSION_HANDLE hSession)
 {
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	return CKR_OK;
 }
 
-CK_RV C_InitPIN(CK_SESSION_HANDLE hSession, CK_CHAR_PTR pPin, CK_ULONG ulPinLen)
+CK_RV C_InitPIN (CK_SESSION_HANDLE hSession, CK_CHAR_PTR pPin, CK_ULONG ulPinLen)
 {
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_SetPIN(CK_SESSION_HANDLE hSession,
+CK_RV C_SetPIN (CK_SESSION_HANDLE hSession,
 	       CK_CHAR_PTR pOldPin, CK_ULONG ulOldLen, CK_CHAR_PTR pNewPin, CK_ULONG ulNewLen)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
@@ -397,17 +470,16 @@ CK_RV C_SetPIN(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_CreateObject(CK_SESSION_HANDLE hSession,
+CK_RV C_CreateObject (CK_SESSION_HANDLE hSession,
 		CK_ATTRIBUTE_PTR pTemplate,	
 		CK_ULONG ulCount,
 		CK_OBJECT_HANDLE_PTR phObject)
 {
-	fprintf(fp, "%s\n", __func__);
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 
-CK_RV C_CopyObject(CK_SESSION_HANDLE hSession,
+CK_RV C_CopyObject (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hObject,
 		CK_ATTRIBUTE_PTR pTemplate,	
 		CK_ULONG ulCount,
@@ -417,37 +489,30 @@ CK_RV C_CopyObject(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_DestroyObject(CK_SESSION_HANDLE hSession,
+CK_RV C_DestroyObject (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hObject)
 {
-	fprintf(fp, "%s\n", __func__);
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 
 
-CK_RV C_GetObjectSize(CK_SESSION_HANDLE hSession,
+CK_RV C_GetObjectSize (CK_SESSION_HANDLE hSession,
 		      CK_OBJECT_HANDLE hObject,	
 		      CK_ULONG_PTR pulSize)	
 {
-	fprintf(fp, "%s\n", __func__);
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-// void fill_attribute(CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG minLen){
-	// memcpy(att->pValue, value, ulValue);
-// }
-
-CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
+CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hObject,	
 		CK_ATTRIBUTE_PTR pTemplate,	
 		CK_ULONG ulCount)		
 {
 	CK_RV rv = CKR_OK;
-	CK_ULONG i, j;
+	CK_ULONG i, j, idx;
 	CK_BBOOL vtrue = CK_TRUE;
 	CK_ATTRIBUTE_PTR current_attribute;
-	fprintf(fp, "%s\n", __func__);
 
 	if (hObject != 0x90910A0B){
 		return CKR_OBJECT_HANDLE_INVALID;
@@ -455,59 +520,61 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
 
 	for (i = 0; i < ulCount; i++){
 		current_attribute = &pTemplate[i];
-		switch(current_attribute->type){
-			case(CKA_TOKEN):
-				if (current_attribute->ulValueLen >= 1)
-					current_attribute->ulValueLen = 1;
-				else
-					current_attribute->ulValueLen = (CK_LONG)-1;
+		switch (current_attribute->type){
 
-				if (current_attribute->pValue != NULL_PTR)
-					memcpy(current_attribute->pValue, &vtrue, sizeof(CK_TRUE));
-				else
-					current_attribute->ulValueLen = 1;
+			case (CKA_TOKEN):
+				idx = 0;
+				break;
 
+			// case (CKA_LABEL):
+				// current_attribute->ulValueLen = -1;
+				// break;
+
+			case (CKA_VALUE):
+				idx = 7;
 				break;
-			case(CKA_LABEL):
-				current_attribute->ulValueLen = 0;
+
+			case (CKA_CERTIFICATE_TYPE):
+				idx = 2;
 				break;
-			case(CKA_VALUE):
-				// Copy certificate
-				if (current_attribute->pValue != NULL_PTR){
-					if (current_attribute->ulValueLen >= 1011){
-						memcpy((CK_BYTE_PTR)current_attribute->pValue, &sato_certificate, 1011);
-					}else{
-						rv = CKR_BUFFER_TOO_SMALL;
-					}
-				}
-				current_attribute->ulValueLen = 1011;
+
+			case (CKA_ISSUER):
+				idx = 6;
 				break;
-			case(CKA_CERTIFICATE_TYPE):
-				if (current_attribute->pValue != NULL_PTR) {
-					if (current_attribute->ulValueLen >= sizeof(CK_ULONG)){
-							current_attribute->pValue = CKC_X_509 ;
-					}else{
-						rv = CKR_BUFFER_TOO_SMALL;
-					}
-				}else{
-				current_attribute->ulValueLen = sizeof(CK_ULONG);
-				}
+
+			case (CKA_SUBJECT):
+				idx = 8;
+				break;
+
+			case (CKA_SERIAL_NUMBER):
+				idx = 9;
+				break;
+
 			default:
 				current_attribute->ulValueLen = (CK_LONG) -1;
+				continue;
 				break;
 		}
+
+		if (current_attribute->pValue != NULL_PTR){
+			if (current_attribute->ulValueLen >= obj_hard_cert[idx].ulValueLen){
+				memcpy (current_attribute->pValue, obj_hard_cert[idx].pValue, obj_hard_cert[idx].ulValueLen);
+			}else{
+				rv = CKR_BUFFER_TOO_SMALL;
+			}
+		}
+		current_attribute->ulValueLen = obj_hard_cert[idx].ulValueLen;
 	}
 
 	return rv;
 }
 
 
-CK_RV C_SetAttributeValue(CK_SESSION_HANDLE hSession,	
+CK_RV C_SetAttributeValue (CK_SESSION_HANDLE hSession,	
 		CK_OBJECT_HANDLE hObject,	
 		CK_ATTRIBUTE_PTR pTemplate,	
 		CK_ULONG ulCount)		
 {
-	fprintf(fp, "%s\n", __func__);
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
@@ -515,43 +582,40 @@ static CK_ATTRIBUTE_PTR search_template;
 static CK_ULONG search_template_len;
 
 
-CK_RV C_FindObjectsInit(CK_SESSION_HANDLE hSession,
+CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 		CK_ATTRIBUTE_PTR pTemplate,	
 		CK_ULONG ulCount)		
 {
 	CK_ULONG i;
 
-	fprintf(fp, "%s\n", __func__);
 
-	search_template = malloc (sizeof(CK_ATTRIBUTE) * ulCount);
+	search_template = malloc (sizeof (CK_ATTRIBUTE) * ulCount);
 
 	for (i = 0; i < ulCount; i++) {
-		{
-			fprintf(fp, "Attribute\n");
-			fprintf(fp, "Type: [%x]\n", pTemplate[i].type);
-			// fprintf(fp, "pValue: [%x]\n", pTemplate[i].type);
-			fprintf(fp, "ulValueLen: [%x]\n\n", pTemplate[i].ulValueLen);
-		}
 		search_template[i].type = pTemplate[i].type;
 
 		search_template[i].pValue = malloc (pTemplate[i].ulValueLen);
-		memcpy (&(search_template[i].type), &(pTemplate[i].type), pTemplate[i].ulValueLen);
+		memcpy (search_template[i].pValue, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 
 		search_template[i].ulValueLen = pTemplate[i].ulValueLen;
-	}
-	
+	}	
 	search_template_len = ulCount;
+
+	already_searched = 0;
 
 	return CKR_OK;
 }
 
 
 
-CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
+CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE_PTR phObject,
 		CK_ULONG ulMaxObjectCount,
 		CK_ULONG_PTR pulObjectCount)	
 {
+	CK_BBOOL match_token = CK_FALSE, match_email = CK_FALSE, match_class = CK_FALSE;
+	CK_ULONG i;
+
 	if (phObject == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
@@ -563,18 +627,40 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
 
 	*pulObjectCount = 0;
 
-	// if () {
-		// *phObject = ;
-// 
-	// }
+	/* For now, the only known object is the hardcoded certificate */	
+	for (i = 0; i < search_template_len; i++) {
+		if (search_template[i].type == CKA_TOKEN) {
+			if (*( (CK_BBOOL *)search_template[i].pValue) == CK_TRUE)
+				match_token = CK_TRUE;
+		} else if (search_template[i].type == CKA_CLASS) {
+			if (*( (CK_ATTRIBUTE_TYPE *)search_template[i].pValue) == CKO_CERTIFICATE)
+				match_class = CK_TRUE;
+		} /*else if (search_template[i].type == CKA_NSS_EMAIL) {
+			if (!memcmp (search_template[i].pValue, &"satoyuuma@gmail.com", search_template[i].ulValueLen))
+				match_email = CK_TRUE;
+		}*/
+	}
+
+	if (match_token && match_class) {
+		*pulObjectCount = 1;
+		*phObject = HARD_CERT_HANDLE;
+	}
+
 	return CKR_OK;
 }
 
 
 
-CK_RV C_FindObjectsFinal(CK_SESSION_HANDLE hSession)
+CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 {
-	fprintf(fp, "%s\n", __func__);
+	CK_ULONG i;
+
+	for (i = 0; i < search_template_len; i++) {
+		free (search_template[i].pValue);
+	}
+	free (search_template);
+	search_template = NULL;
+
 	return CKR_OK;
 }
 
@@ -583,7 +669,7 @@ CK_RV C_FindObjectsFinal(CK_SESSION_HANDLE hSession)
  * Below here all functions are wrappers to pass all object attribute and method
  * handling to appropriate object layer.
  */
-CK_RV C_DigestInit(CK_SESSION_HANDLE hSession,
+CK_RV C_DigestInit (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
@@ -591,7 +677,7 @@ CK_RV C_DigestInit(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_Digest(CK_SESSION_HANDLE hSession,	
+CK_RV C_Digest (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,	
 		CK_ULONG ulDataLen,	
 		CK_BYTE_PTR pDigest,	
@@ -602,7 +688,7 @@ CK_RV C_Digest(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_DigestUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_DigestUpdate (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pPart,	
 		CK_ULONG ulPartLen)	
 {
@@ -611,14 +697,14 @@ CK_RV C_DigestUpdate(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_DigestKey(CK_SESSION_HANDLE hSession,
+CK_RV C_DigestKey (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hKey)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 
-CK_RV C_DigestFinal(CK_SESSION_HANDLE hSession,
+CK_RV C_DigestFinal (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pDigest,	
 		CK_ULONG_PTR pulDigestLen)	
 {
@@ -627,14 +713,14 @@ CK_RV C_DigestFinal(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_SignInit(CK_SESSION_HANDLE hSession,		
+CK_RV C_SignInit (CK_SESSION_HANDLE hSession,		
 		CK_MECHANISM_PTR pMechanism,
 		CK_OBJECT_HANDLE hKey)	
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_Sign(CK_SESSION_HANDLE hSession,	
+CK_RV C_Sign (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,		
 		CK_ULONG ulDataLen,	
 		CK_BYTE_PTR pSignature,	
@@ -645,7 +731,7 @@ CK_RV C_Sign(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_SignUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_SignUpdate (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pPart,	
 		CK_ULONG ulPartLen)	
 {
@@ -654,7 +740,7 @@ CK_RV C_SignUpdate(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_SignFinal(CK_SESSION_HANDLE hSession,	
+CK_RV C_SignFinal (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pSignature,	
 		CK_ULONG_PTR pulSignatureLen)
 {
@@ -663,14 +749,14 @@ CK_RV C_SignFinal(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_SignRecoverInit(CK_SESSION_HANDLE hSession,	
+CK_RV C_SignRecoverInit (CK_SESSION_HANDLE hSession,	
 		CK_MECHANISM_PTR pMechanism,	
 		CK_OBJECT_HANDLE hKey)	
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_SignRecover(CK_SESSION_HANDLE hSession,	
+CK_RV C_SignRecover (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,	
 		CK_ULONG ulDataLen,	
 		CK_BYTE_PTR pSignature,	
@@ -680,7 +766,7 @@ CK_RV C_SignRecover(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_EncryptInit(CK_SESSION_HANDLE hSession,
+CK_RV C_EncryptInit (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism,	
 		CK_OBJECT_HANDLE hKey)	
 {
@@ -688,7 +774,7 @@ CK_RV C_EncryptInit(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_Encrypt(CK_SESSION_HANDLE hSession,	
+CK_RV C_Encrypt (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,
 		CK_ULONG ulDataLen,
 		CK_BYTE_PTR pEncryptedData,
@@ -697,7 +783,7 @@ CK_RV C_Encrypt(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_EncryptUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_EncryptUpdate (CK_SESSION_HANDLE hSession,
 		      CK_BYTE_PTR pPart,	
 		      CK_ULONG ulPartLen,
 		      CK_BYTE_PTR pEncryptedPart,
@@ -706,14 +792,14 @@ CK_RV C_EncryptUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_EncryptFinal(CK_SESSION_HANDLE hSession,
+CK_RV C_EncryptFinal (CK_SESSION_HANDLE hSession,
 		     CK_BYTE_PTR pLastEncryptedPart,
 		     CK_ULONG_PTR pulLastEncryptedPartLen)
 {			
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DecryptInit(CK_SESSION_HANDLE hSession,
+CK_RV C_DecryptInit (CK_SESSION_HANDLE hSession,
 		    CK_MECHANISM_PTR pMechanism,
 		    CK_OBJECT_HANDLE hKey)
 {
@@ -721,7 +807,7 @@ CK_RV C_DecryptInit(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_Decrypt(CK_SESSION_HANDLE hSession,	
+CK_RV C_Decrypt (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pEncryptedData,
 		CK_ULONG ulEncryptedDataLen,
 		CK_BYTE_PTR pData,
@@ -731,7 +817,7 @@ CK_RV C_Decrypt(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_DecryptUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_DecryptUpdate (CK_SESSION_HANDLE hSession,
 		      CK_BYTE_PTR pEncryptedPart,	
 		      CK_ULONG ulEncryptedPartLen,
 		      CK_BYTE_PTR pPart,
@@ -740,14 +826,14 @@ CK_RV C_DecryptUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DecryptFinal(CK_SESSION_HANDLE hSession,
+CK_RV C_DecryptFinal (CK_SESSION_HANDLE hSession,
 		     CK_BYTE_PTR pLastPart,	
 		     CK_ULONG_PTR pulLastPartLen)
 {			
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DigestEncryptUpdate(CK_SESSION_HANDLE hSession,	
+CK_RV C_DigestEncryptUpdate (CK_SESSION_HANDLE hSession,	
 			    CK_BYTE_PTR pPart,
 			    CK_ULONG ulPartLen,
 			    CK_BYTE_PTR pEncryptedPart,	
@@ -756,7 +842,7 @@ CK_RV C_DigestEncryptUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DecryptDigestUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_DecryptDigestUpdate (CK_SESSION_HANDLE hSession,
 			    CK_BYTE_PTR pEncryptedPart,	
 			    CK_ULONG ulEncryptedPartLen,
 			    CK_BYTE_PTR pPart,
@@ -765,7 +851,7 @@ CK_RV C_DecryptDigestUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_SignEncryptUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_SignEncryptUpdate (CK_SESSION_HANDLE hSession,
 			  CK_BYTE_PTR pPart,
 			  CK_ULONG ulPartLen,
 			  CK_BYTE_PTR pEncryptedPart,
@@ -774,7 +860,7 @@ CK_RV C_SignEncryptUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DecryptVerifyUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_DecryptVerifyUpdate (CK_SESSION_HANDLE hSession,
 			    CK_BYTE_PTR pEncryptedPart,
 			    CK_ULONG ulEncryptedPartLen,
 			    CK_BYTE_PTR pPart,
@@ -783,7 +869,7 @@ CK_RV C_DecryptVerifyUpdate(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_GenerateKey(CK_SESSION_HANDLE hSession,
+CK_RV C_GenerateKey (CK_SESSION_HANDLE hSession,
 		    CK_MECHANISM_PTR pMechanism,
 		    CK_ATTRIBUTE_PTR pTemplate,
 		    CK_ULONG ulCount,
@@ -792,7 +878,7 @@ CK_RV C_GenerateKey(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession,
+CK_RV C_GenerateKeyPair (CK_SESSION_HANDLE hSession,
 			CK_MECHANISM_PTR pMechanism,
 			CK_ATTRIBUTE_PTR pPublicKeyTemplate,
 			CK_ULONG ulPublicKeyAttributeCount,	
@@ -806,7 +892,7 @@ CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession,
 
 
 
-CK_RV C_WrapKey(CK_SESSION_HANDLE hSession,
+CK_RV C_WrapKey (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism,
 		CK_OBJECT_HANDLE hWrappingKey,
 		CK_OBJECT_HANDLE hKey,
@@ -816,7 +902,7 @@ CK_RV C_WrapKey(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_UnwrapKey(CK_SESSION_HANDLE hSession,
+CK_RV C_UnwrapKey (CK_SESSION_HANDLE hSession,
 		  CK_MECHANISM_PTR pMechanism,
 		  CK_OBJECT_HANDLE hUnwrappingKey,
 		  CK_BYTE_PTR pWrappedKey,
@@ -828,7 +914,7 @@ CK_RV C_UnwrapKey(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_DeriveKey(CK_SESSION_HANDLE hSession,
+CK_RV C_DeriveKey (CK_SESSION_HANDLE hSession,
 		  CK_MECHANISM_PTR pMechanism,
 		  CK_OBJECT_HANDLE hBaseKey,
 		  CK_ATTRIBUTE_PTR pTemplate,
@@ -839,14 +925,14 @@ CK_RV C_DeriveKey(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_SeedRandom(CK_SESSION_HANDLE hSession,
+CK_RV C_SeedRandom (CK_SESSION_HANDLE hSession,
 		   CK_BYTE_PTR pSeed,
 		   CK_ULONG ulSeedLen)
 {			
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_GenerateRandom(CK_SESSION_HANDLE hSession,
+CK_RV C_GenerateRandom (CK_SESSION_HANDLE hSession,
 		       CK_BYTE_PTR RandomData,
 		       CK_ULONG ulRandomLen)
 {
@@ -854,17 +940,17 @@ CK_RV C_GenerateRandom(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_GetFunctionStatus(CK_SESSION_HANDLE hSession)
+CK_RV C_GetFunctionStatus (CK_SESSION_HANDLE hSession)
 {	
 	return CKR_FUNCTION_NOT_PARALLEL;
 }
 
-CK_RV C_CancelFunction(CK_SESSION_HANDLE hSession)
+CK_RV C_CancelFunction (CK_SESSION_HANDLE hSession)
 {			
 	return CKR_FUNCTION_NOT_PARALLEL;
 }
 
-CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession,
+CK_RV C_VerifyInit (CK_SESSION_HANDLE hSession,
 		   CK_MECHANISM_PTR pMechanism,	
 		   CK_OBJECT_HANDLE hKey)
 {
@@ -872,7 +958,7 @@ CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_Verify(CK_SESSION_HANDLE hSession,
+CK_RV C_Verify (CK_SESSION_HANDLE hSession,
 	       CK_BYTE_PTR pData,
 	       CK_ULONG ulDataLen,
 	       CK_BYTE_PTR pSignature,
@@ -882,7 +968,7 @@ CK_RV C_Verify(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_VerifyUpdate(CK_SESSION_HANDLE hSession,
+CK_RV C_VerifyUpdate (CK_SESSION_HANDLE hSession,
 		     CK_BYTE_PTR pPart,
 		     CK_ULONG ulPartLen)
 {
@@ -890,7 +976,7 @@ CK_RV C_VerifyUpdate(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_VerifyFinal(CK_SESSION_HANDLE hSession,
+CK_RV C_VerifyFinal (CK_SESSION_HANDLE hSession,
 		    CK_BYTE_PTR pSignature,
 		    CK_ULONG ulSignatureLen)
 {
@@ -898,14 +984,14 @@ CK_RV C_VerifyFinal(CK_SESSION_HANDLE hSession,
 }
 
 
-CK_RV C_VerifyRecoverInit(CK_SESSION_HANDLE hSession,
+CK_RV C_VerifyRecoverInit (CK_SESSION_HANDLE hSession,
 			  CK_MECHANISM_PTR pMechanism,
 			  CK_OBJECT_HANDLE hKey)
 {		
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV C_VerifyRecover(CK_SESSION_HANDLE hSession,
+CK_RV C_VerifyRecover (CK_SESSION_HANDLE hSession,
 		      CK_BYTE_PTR pSignature,
 		      CK_ULONG ulSignatureLen,
 		      CK_BYTE_PTR pData,
@@ -915,7 +1001,7 @@ CK_RV C_VerifyRecover(CK_SESSION_HANDLE hSession,
 }
 
 CK_FUNCTION_LIST pkcs11_function_list = {
-	{ 2, 11 }, /* Note: NSS/Firefox ignores this version number and uses C_GetInfo() */
+	{ 2, 20}, /* Note: NSS/Firefox ignores this version number and uses C_GetInfo() */
 	C_Initialize,
 	C_Finalize,
 	C_GetInfo,
