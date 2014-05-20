@@ -122,6 +122,7 @@ static unsigned char subject_name[] = {
 #define HARD_CERT_HANDLE 0x90910A0B
 static CK_OBJECT_HANDLE h_hard_cert = HARD_CERT_HANDLE;
 static CK_ATTRIBUTE_PTR obj_hard_cert;
+static CK_ULONG att_count;
 
 static CK_ULONG already_searched;
 
@@ -129,7 +130,6 @@ CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 {
 	CK_RV rv = CKR_OK;
 	CK_ULONG i;
-	CK_ULONG att_count;
 	int d;
 	CK_ATTRIBUTE_PTR obj;
 
@@ -217,10 +217,15 @@ CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 CK_RV C_Finalize (CK_VOID_PTR pReserved)
 {
 	CK_RV rv = CKR_OK;
+	CK_ULONG i;
 	//Close connection with addressbook sources
 
 	/* Free hardcoded_certificate */
-	
+	for (i = 0; i < att_count; i++) {
+		free (obj_hard_cert[i].pValue);
+	}
+
+	free (obj_hard_cert);	
 	
 	return rv;
 }

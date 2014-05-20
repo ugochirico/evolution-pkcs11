@@ -73,6 +73,7 @@ int main (int argc, char **argv)
 
 _fail:
 	printf ("RV: [%x]\n", rv);
+	NSS_Shutdown();
 	return rv;
 }
 
