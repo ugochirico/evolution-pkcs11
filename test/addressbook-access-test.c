@@ -10,9 +10,11 @@ int main (int argc, char **argv)
 	EBookClient *client_addressbook;
 	GList *addressbooks, *aux_addressbooks;
 	GSList *contacts, *it;
+	EBookQuery *query;
 	gchar *query_string, *email;
 	gboolean status;
 	gchar *fullname;
+	EContactCert *cert;
 
 	if (argc != 2) return 1;
 
@@ -23,7 +25,10 @@ int main (int argc, char **argv)
 	client_cache = e_client_cache_new (registry);
 	addressbooks = e_source_registry_list_enabled (registry, E_SOURCE_EXTENSION_ADDRESS_BOOK);
 
-	query_string = g_strdup_printf ("(contains \"email\" \"%s\")", email);
+	query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
+	query_string = e_book_query_to_string (query);
+	
+	printf("Query String: %s\n", query_string);
 
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
@@ -35,6 +40,11 @@ int main (int argc, char **argv)
 			for (it = contacts; it != NULL; it = it->next){
 				fullname  = e_contact_get (it->data, E_CONTACT_FULL_NAME);
 				printf ("Fullname: %s\n", fullname);
+				cert = e_contact_get (it->data, E_CONTACT_X509_CERT);
+				if (cert != NULL) {
+					printf ("Size: %lu\n", cert->length);
+					printf ("Cert: %s\n", cert->data);
+				}
 			}
 		} 
 

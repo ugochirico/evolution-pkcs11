@@ -218,7 +218,7 @@ extern "C" {
  #ifndef NULL_PTR
  #define NULL_PTR 0
  #endif
- /*/
+ /*_ */
 
 
 /* All the various Cryptoki types and #define'd values are in the
