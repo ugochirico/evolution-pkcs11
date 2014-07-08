@@ -2,7 +2,7 @@ AM_CFLAGS=-Wall -I/usr/include/nspr4 -I/usr/include/evolution-data-server -I/usr
 
 lib_LTLIBRARIES = evolution-pkcs11.la
 evolution_pkcs11_la_SOURCES = pkcs11.c pkcs11.h pkcs11f.h pkcs11t.h object.h object.c
-evolution_pkcs11_la_LDFLAGS= -module -L/usr/lib64/evolution/3.10 
-evolution_pkcs11_la_LIBADD=-levolution-shell -lnss3 -lplc4 -levolution-util -lebook-1.2 -lglib-2.0 -lebook-contacts-1.2 -ledataserver-1.2
+evolution_pkcs11_la_LDFLAGS= -module 
+evolution_pkcs11_la_LIBADD = -ledataserver-1.2
 
 
