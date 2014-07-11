@@ -344,175 +344,175 @@ CK_RV set_attribute_template(CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG v
 	return rv;
 }
 
-const SEC_ASN1Template SEC_CertSubjectTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_SKIP },	  /* serial number */
-	{ SEC_ASN1_SKIP },	  /* signature algorithm */
-	{ SEC_ASN1_SKIP },	  /* issuer */
-	{ SEC_ASN1_SKIP },	  /* validity */
-	{ SEC_ASN1_ANY, 0, NULL },	  /* subject */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-const SEC_ASN1Template SEC_CertIssuerTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_SKIP },	  /* serial number */
-	{ SEC_ASN1_SKIP },	  /* signature algorithm */
-	{ SEC_ASN1_ANY, 0, NULL },	  /* issuer */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-const SEC_ASN1Template SEC_CertSerialNumberTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_ANY, 0, NULL }, /* serial number */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-SECStatus
-CERT_NameFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSubjectTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
-
-SECStatus CERT_IssuerNameFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertIssuerTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
-
-SECStatus
-CERT_SerialNumberFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSerialNumberTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
+// const SEC_ASN1Template SEC_CertSubjectTemplate[] = {
+	// { SEC_ASN1_SEQUENCE,
+		// 0, NULL, sizeof(SECItem) },
+	// { SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
+		// SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
+		// 0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
+	// { SEC_ASN1_SKIP },	  /* serial number */
+	// { SEC_ASN1_SKIP },	  /* signature algorithm */
+	// { SEC_ASN1_SKIP },	  /* issuer */
+	// { SEC_ASN1_SKIP },	  /* validity */
+	// { SEC_ASN1_ANY, 0, NULL },	  /* subject */
+	// { SEC_ASN1_SKIP_REST },
+	// { 0 }
+// };
+// 
+// const SEC_ASN1Template SEC_CertIssuerTemplate[] = {
+	// { SEC_ASN1_SEQUENCE,
+		// 0, NULL, sizeof(SECItem) },
+	// { SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
+		// SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
+		// 0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
+	// { SEC_ASN1_SKIP },	  /* serial number */
+	// { SEC_ASN1_SKIP },	  /* signature algorithm */
+	// { SEC_ASN1_ANY, 0, NULL },	  /* issuer */
+	// { SEC_ASN1_SKIP_REST },
+	// { 0 }
+// };
+// 
+// const SEC_ASN1Template SEC_CertSerialNumberTemplate[] = {
+	// { SEC_ASN1_SEQUENCE,
+		// 0, NULL, sizeof(SECItem) },
+	// { SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
+		// SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
+		// 0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
+	// { SEC_ASN1_ANY, 0, NULL }, /* serial number */
+	// { SEC_ASN1_SKIP_REST },
+	// { 0 }
+// };
+// 
+// SECStatus
+// CERT_NameFromDERCert(SECItem *derCert, SECItem *derName)
+// {
+	// int rv;
+	// PRArenaPool *arena;
+	// CERTSignedData sd;
+	// void *tmpptr;
+// 
+	// arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+// 
+	// if ( ! arena ) {
+		// return(SECFailure);
+	// }
+// 
+	// PORT_Memset(&sd, 0, sizeof(CERTSignedData));
+	// rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memset(derName, 0, sizeof(SECItem));
+	// rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSubjectTemplate, &sd.data);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// tmpptr = derName->data;
+	// derName->data = (unsigned char*)PORT_Alloc(derName->len);
+	// if ( derName->data == NULL ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memcpy(derName->data, tmpptr, derName->len);
+// 
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECSuccess);
+// 
+// loser:
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECFailure);
+// }
+// 
+// SECStatus CERT_IssuerNameFromDERCert(SECItem *derCert, SECItem *derName)
+// {
+	// int rv;
+	// PRArenaPool *arena;
+	// CERTSignedData sd;
+	// void *tmpptr;
+// 
+	// arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+// 
+	// if ( ! arena ) {
+		// return(SECFailure);
+	// }
+// 
+	// PORT_Memset(&sd, 0, sizeof(CERTSignedData));
+	// rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memset(derName, 0, sizeof(SECItem));
+	// rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertIssuerTemplate, &sd.data);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// tmpptr = derName->data;
+	// derName->data = (unsigned char*)PORT_Alloc(derName->len);
+	// if ( derName->data == NULL ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memcpy(derName->data, tmpptr, derName->len);
+// 
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECSuccess);
+// 
+// loser:
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECFailure);
+// }
+// 
+// SECStatus
+// CERT_SerialNumberFromDERCert(SECItem *derCert, SECItem *derName)
+// {
+	// int rv;
+	// PRArenaPool *arena;
+	// CERTSignedData sd;
+	// void *tmpptr;
+// 
+	// arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+// 
+	// if ( ! arena ) {
+		// return(SECFailure);
+	// }
+// 
+	// PORT_Memset(&sd, 0, sizeof(CERTSignedData));
+	// rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memset(derName, 0, sizeof(SECItem));
+	// rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSerialNumberTemplate, &sd.data);
+// 
+	// if ( rv ) {
+		// goto loser;
+	// }
+// 
+	// tmpptr = derName->data;
+	// derName->data = (unsigned char*)PORT_Alloc(derName->len);
+	// if ( derName->data == NULL ) {
+		// goto loser;
+	// }
+// 
+	// PORT_Memcpy(derName->data, tmpptr, derName->len);
+// 
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECSuccess);
+// 
+// loser:
+	// PORT_FreeArena(arena, PR_FALSE);
+	// return(SECFailure);
+// }
 
 CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hObject,	
@@ -523,9 +523,10 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	CK_ULONG i;
 	CK_ATTRIBUTE_PTR current_attribute;
 	GSList *object;
-	SECItem *der, tempder;
+	// SECItem *der, tempder;
+	CERTCertificate *cert;
 	CK_BBOOL sec_item;
-	SECStatus sec_rv;
+	// SECStatus sec_rv;
 	CK_VOID_PTR value;
 	CK_ULONG value_len;
 
@@ -534,7 +535,8 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 
 	object = g_slist_find_custom (objects_found, &hObject, object_compare_func);
 	
-	der = ((Object *)object->data)->der;
+	// der = ((Object *)object->data)->der;
+	cert = ((Object *)object->data)->cert;
 
 	for (i = 0; i < ulCount; i++){
 		current_attribute = &pTemplate[i];
@@ -548,8 +550,8 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				break;
 
 			case (CKA_VALUE):
-				value = der->data;
-				value_len = der->len;
+				value = cert->derCert.data;
+				value_len = cert->derCert.len;
 				break;
 
 			case (CKA_CERTIFICATE_TYPE):
@@ -559,26 +561,33 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				break;
 
 			case (CKA_ISSUER):
-				sec_rv = CERT_IssuerNameFromDERCert(der, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value_len = tempder.len;
+				// sec_rv = CERT_IssuerNameFromDERCert(der, &tempder);
+				// if (sec_rv != SECSuccess) continue;
+				// value = tempder.data;
+				// value = tempder.data;
+
+				value = cert->derIssuer.data;
+				value_len = cert->derIssuer.len;
 				sec_item = CK_TRUE;	
 				break;
 
 			case (CKA_SUBJECT):
-				sec_rv = CERT_NameFromDERCert(der, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value_len = tempder.len;
+				// sec_rv = CERT_NameFromDERCert(der, &tempder);
+				// if (sec_rv != SECSuccess) continue;
+				// value = tempder.data;
+				// value_len = tempder.len;
+				value = cert->derSubject.data;
+				value_len = cert->derSubject.len;
 				sec_item = CK_TRUE;	
 				break;
 
 			case (CKA_SERIAL_NUMBER):
-				sec_rv = CERT_SerialNumberFromDERCert(der, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value_len = tempder.len;
+				// sec_rv = CERT_SerialNumberFromDERCert(der, &tempder);
+				// if (sec_rv != SECSuccess) continue;
+				// value = tempder.data;
+				// value_len = tempder.len;
+				value = cert->serialNumber.data;
+				value_len = cert->serialNumber.len;
 				sec_item = CK_TRUE;	
 				break;
 
@@ -614,7 +623,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	EBookClient *client_addressbook;
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
-	EBookQuery *query;
+	EBookQuery *final_query, *query = NULL;
 
 	Object *obj;
 
@@ -639,6 +648,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 			case CKA_NSS_EMAIL:
 				email = malloc(pTemplate[i].ulValueLen);
 				memcpy(label, pTemplate[i].pValue, pTemplate[i].ulValueLen);
+				email[pTemplate[i].ulValueLen] = '\0';
 				break;
 		}
 	}
@@ -659,13 +669,14 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	} else if (email) {
 		query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
 		free (email);
-	} else {
-		/* TODO Searching for persistent certificates, but did not provide label or email to search for, 
-		 * decide what to to */
-		return CKR_OK;
-	}
+	} 
 
-	query_string = e_book_query_to_string (query);
+	final_query = e_book_query_andv (
+			e_book_query_field_exists (E_CONTACT_X509_CERT),
+			query,
+			NULL);
+
+	query_string = e_book_query_to_string (final_query);
 
 	addressbooks = e_source_registry_list_enabled (registry, E_SOURCE_EXTENSION_ADDRESS_BOOK);
 	aux_addressbooks = addressbooks;
