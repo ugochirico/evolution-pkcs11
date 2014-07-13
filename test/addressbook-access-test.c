@@ -17,16 +17,22 @@ int main (int argc, char **argv)
 	EContactCert *cert;
 	gsize i;
 
-	if (argc != 2) return 1;
-
-	email = argv[1];
+	if (argc != 2) {
+		email = NULL;
+	} else {
+		email = argv[1];
+	}
 	 
 	registry = e_source_registry_new_sync (NULL, &error);
 
 	client_cache = e_client_cache_new (registry);
 	addressbooks = e_source_registry_list_enabled (registry, E_SOURCE_EXTENSION_ADDRESS_BOOK);
 
-	query_mail = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
+	if (email == NULL) {
+		query_mail = NULL;
+	}else {
+		query_mail = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
+	}
 	query_cert = e_book_query_field_exists (E_CONTACT_X509_CERT);
 	final_query = e_book_query_andv (query_cert, query_mail, NULL);
 
