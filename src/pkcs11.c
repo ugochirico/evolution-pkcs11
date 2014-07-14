@@ -1,5 +1,6 @@
 #include "pkcs11.h"
 #include "object.h"
+#include "session.h"
 #include <libebook/libebook.h>
 #include <shell/e-shell.h>
 #include <nss3/cert.h>
@@ -21,9 +22,8 @@ static CK_OBJECT_HANDLE object_handle_counter;
 static ESourceRegistry *registry;
 static EClientCache *client_cache;
 
-/* Variables used when searching */
-static GSList *contacts, *contacts_it;
-static GSList *objects_found = NULL, *objects_it, *all_objects=NULL;
+/* Single session for now */
+static Session *session;
 
 CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 {
@@ -215,7 +215,18 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 	if (flags & ~(CKF_SERIAL_SESSION | CKF_RW_SESSION))
 		return CKR_ARGUMENTS_BAD;
 
-	*phSession = (CK_ULONG) 1;
+	/* Module is single session for now */
+	session = malloc (sizeof(Session));
+	if (session == NULL)
+		return CKR_HOST_MEMORY;
+
+	session->handle = (CK_ULONG) 1;
+	session->search_on_going = FALSE;
+	session->search_objects = NULL;
+	session->search_objects_it = NULL;
+	session->objects_found = NULL;
+
+	*phSession =  session->handle;
 
 	return CKR_OK;
 }
@@ -223,10 +234,12 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 
 CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
 {			
+	/* Module is single session for now */
+	if (hSession != session->handle) 
+		return CKR_SESSION_HANDLE_INVALID;
 
-	if (all_objects!= NULL) {
-
-		g_slist_free_full(all_objects, destroy_object);
+	if (session->objects_found != NULL) {
+		g_slist_free_full (session->objects_found, destroy_object);
 	}
 
 	return CKR_OK;
@@ -242,6 +255,9 @@ CK_RV C_CloseAllSessions (CK_SLOT_ID slotID)
 CK_RV C_GetSessionInfo (CK_SESSION_HANDLE hSession,
 		       CK_SESSION_INFO_PTR pInfo)
 {			
+	/* Module is single session for now */
+	if (hSession != session->handle)
+		return CKR_SESSION_HANDLE_INVALID;
 
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
@@ -275,12 +291,12 @@ CK_RV C_Login (CK_SESSION_HANDLE hSession,
 	      CK_CHAR_PTR pPin,
 	      CK_ULONG ulPinLen)
 {
-	return CKR_OK;
+	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 CK_RV C_Logout (CK_SESSION_HANDLE hSession)
 {
-	return CKR_OK;
+	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 CK_RV C_InitPIN (CK_SESSION_HANDLE hSession, CK_CHAR_PTR pPin, CK_ULONG ulPinLen)
@@ -532,7 +548,11 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	CK_BBOOL p11_boolean;
 	CK_ULONG p11_ulong;
 
-	object = g_slist_find_custom (objects_found, &hObject, object_compare_func);
+	/* Module is single session for now */
+	if (hSession != session->handle)
+		return CKR_SESSION_HANDLE_INVALID;
+
+	object = g_slist_find_custom (session->objects_found, &hObject, object_compare_func);
 	
 	derCert = ((Object *)object->data)->derCert;
 
@@ -616,9 +636,19 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
 	EBookQuery *final_query, *query = NULL;
-
 	Object *obj;
+	GSList *contacts, *contacts_it;
 
+	/* Module is single session for now */
+	if (hSession != session->handle)
+		return CKR_SESSION_HANDLE_INVALID;
+
+	if (session->search_on_going) return CKR_OPERATION_ACTIVE;
+
+	session->search_on_going = TRUE;
+
+	/* Run through template looking for the attributes indicating a
+	 * a search for certificates */
 	for (i = 0; i < ulCount; i++) {
 		switch (pTemplate[i].type) {
 
@@ -686,7 +716,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 			for (contacts_it = contacts; contacts_it != NULL; contacts_it = contacts_it->next){
 				obj = new_object(contacts_it->data, object_handle_counter++);
 				if (obj != NULL) {
-					objects_found = g_slist_append(objects_found, obj);
+					session->search_objects = g_slist_append(session->search_objects, obj);
 				}
 			}
 
@@ -700,7 +730,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 	g_list_free_full (addressbooks, (GDestroyNotify) g_object_unref);
 
-	objects_it = objects_found;
+	session->search_objects_it = session->search_objects;
 
 	return CKR_OK;
 }
@@ -709,9 +739,15 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE_PTR phObject,
 		CK_ULONG ulMaxObjectCount,
-		CK_ULONG_PTR pulObjectCount)	
+		CK_ULONG_PTR pulObjectCount)
 {
 	CK_ULONG i;
+
+	/* Module is single session for now */
+	if (hSession != session->handle) 
+		return CKR_SESSION_HANDLE_INVALID;
+
+	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
 
 	if (phObject == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
@@ -724,14 +760,14 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 	*pulObjectCount = 0;
 
-	if (objects_it == NULL) return CKR_OK;
+	if (session->search_objects_it == NULL) return CKR_OK;
 
 	for (i = 0; i < ulMaxObjectCount; i++) {
-		if (objects_it != NULL) { 
-			phObject[i] = ((Object *)objects_it->data)->handle;
+		if (session->search_objects_it != NULL) {
+			phObject[i] = ((Object *)session->search_objects_it->data)->handle;
 			*pulObjectCount+=1;
 
-			objects_it = objects_it->next;
+			session->search_objects_it = session->search_objects_it->next;
 		}
 	}
 
@@ -739,13 +775,21 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 }
 
 
-
 CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 {
+	/* Module is single session for now */
+	if (hSession != session->handle)
+		return CKR_SESSION_HANDLE_INVALID;
 
-	/* TODO treat repeated objects */
-	all_objects = g_slist_append(all_objects, objects_found);
-	
+	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
+
+	/* TODO treat repeated objects when merging list of objects */
+	session->objects_found = g_slist_concat (session->objects_found, session->search_objects);
+
+	session->search_on_going = FALSE;
+	session->search_objects = NULL;
+	session->search_objects_it = NULL;
+
 	return CKR_OK;
 }
 
