@@ -351,7 +351,11 @@ CK_RV set_attribute_template(CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG v
 	CK_RV rv = CKR_OK;
 	if (att->pValue != NULL_PTR){
 		if (att->ulValueLen >= value_len){
-			memcpy (att->pValue, value, value_len);
+			if (value != NULL_PTR) {
+				memcpy (att->pValue, value, value_len);
+			} else {
+				att->pValue = NULL_PTR;
+			}
 		}else{
 			rv = CKR_BUFFER_TOO_SMALL;
 		}
@@ -601,6 +605,12 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				value = tempder.data;
 				value_len = tempder.len;
 				sec_item = CK_TRUE;	
+				break;
+
+			case (CKA_LABEL):
+				value = NULL_PTR;
+				value_len = 0;
+
 				break;
 
 			default:
