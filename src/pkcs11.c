@@ -690,16 +690,16 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 	if (label && email) {
 		query = e_book_query_orv ( 
-				e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, label), 
-				e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email),
+				e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_IS, label), 
+				e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_IS, email),
 				NULL);
 		free (label);
 		free (email);
 	} else if (label) {
-		query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, label);
+		query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_IS, label);
 		free (label);
 	} else if (email) {
-		query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
+		query = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_IS, email);
 		free (email);
 	} 
 

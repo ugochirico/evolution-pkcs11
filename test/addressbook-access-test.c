@@ -31,7 +31,7 @@ int main (int argc, char **argv)
 	if (email == NULL) {
 		query_mail = NULL;
 	}else {
-		query_mail = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_CONTAINS, email);
+		query_mail = e_book_query_field_test (E_CONTACT_EMAIL, E_BOOK_QUERY_IS, email);
 	}
 	query_cert = e_book_query_field_exists (E_CONTACT_X509_CERT);
 	final_query = e_book_query_andv (query_cert, query_mail, NULL);
