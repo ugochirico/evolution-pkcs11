@@ -9,6 +9,7 @@ typedef struct Object {
 
 Object *new_object (EContact *contact, CK_ULONG handle);
 
+gboolean compare_object_issuer(Object *obj, SECItem *issuerName) ;
 gint object_compare_func (gconstpointer a, gconstpointer b);
 
 void destroy_object (gpointer data);

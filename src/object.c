@@ -4,7 +4,8 @@
 #include <nss3/secerr.h>
 #include <nss3/secpkcs7.h>
 
-Object *new_object (EContact *contact, CK_ULONG handle) {
+Object *new_object (EContact *contact, CK_ULONG handle) 
+{
 	Object *obj;
 	EContactCert *cert;
 	char *temp;
@@ -34,7 +35,22 @@ Object *new_object (EContact *contact, CK_ULONG handle) {
 	return obj;
 }
 
-gint object_compare_func (gconstpointer a, gconstpointer b) {
+gboolean compare_object_issuer(Object *obj, SECItem *issuerName) 
+{
+	SECStatus sec_rv;
+	SECItem tempder;
+	gboolean rv = FALSE;
+
+	sec_rv = CERT_IssuerNameFromDERCert(obj->derCert, &tempder);
+	if (sec_rv != SECSuccess) return FALSE;
+
+	if (!memcmp (tempder.data, issuerName->data, MIN(issuerName->len, tempder.len))) rv = TRUE;
+
+	return rv;
+}
+
+gint object_compare_func (gconstpointer a, gconstpointer b) 
+{
 	CK_ULONG *_a, *_b;
 	_a = (CK_ULONG_PTR) a;
 	_b = (CK_ULONG_PTR) b;
@@ -42,7 +58,8 @@ gint object_compare_func (gconstpointer a, gconstpointer b) {
 	return (gint) *_a - *_b;
 }
 
-void destroy_object (gpointer data) {
+void destroy_object (gpointer data) 
+{
 	Object *obj = (Object *) data;
 
 	free (obj->derCert);

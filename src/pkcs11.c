@@ -1,12 +1,9 @@
 #include "pkcs11.h"
 #include "object.h"
 #include "session.h"
+#include "util.h"
 #include <libebook/libebook.h>
 #include <shell/e-shell.h>
-#include <nss3/cert.h>
-#include <nss3/certt.h>
-#include <nss3/pkcs11n.h>
-#include <nss3/base64.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -221,6 +218,9 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 	session->search_on_going = FALSE;
 	session->cursor_list = NULL;
 	session->current_cursor = NULL;
+	session->att_issuer = FALSE;
+	session->search_issuer.data = NULL;
+	session->search_issuer.len = 0;
 	session->objects_found = NULL;
 
 	*phSession =  session->handle;
@@ -344,193 +344,6 @@ CK_RV C_GetObjectSize (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_RV set_attribute_template(CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG value_len){
-	CK_RV rv = CKR_OK;
-	if (att->pValue != NULL_PTR){
-		if (att->ulValueLen >= value_len){
-			if (value != NULL_PTR) {
-				memcpy (att->pValue, value, value_len);
-			} else {
-				att->pValue = NULL_PTR;
-			}
-		}else{
-			rv = CKR_BUFFER_TOO_SMALL;
-		}
-	}
-	att->ulValueLen = value_len;
-	return rv;
-}
-
-const SEC_ASN1Template SEC_CertSubjectTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_SKIP },	  /* serial number */
-	{ SEC_ASN1_SKIP },	  /* signature algorithm */
-	{ SEC_ASN1_SKIP },	  /* issuer */
-	{ SEC_ASN1_SKIP },	  /* validity */
-	{ SEC_ASN1_ANY, 0, NULL },	  /* subject */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-const SEC_ASN1Template SEC_CertIssuerTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_SKIP },	  /* serial number */
-	{ SEC_ASN1_SKIP },	  /* signature algorithm */
-	{ SEC_ASN1_ANY, 0, NULL },	  /* issuer */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-const SEC_ASN1Template SEC_CertSerialNumberTemplate[] = {
-	{ SEC_ASN1_SEQUENCE,
-		0, NULL, sizeof(SECItem) },
-	{ SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | 
-		SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
-		0, SEC_ASN1_SUB(SEC_SkipTemplate) },  /* version */
-	{ SEC_ASN1_ANY, 0, NULL }, /* serial number */
-	{ SEC_ASN1_SKIP_REST },
-	{ 0 }
-};
-
-SECStatus
-CERT_NameFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSubjectTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
-
-SECStatus CERT_IssuerNameFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertIssuerTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
-
-SECStatus
-CERT_SerialNumberFromDERCert(SECItem *derCert, SECItem *derName)
-{
-	int rv;
-	PRArenaPool *arena;
-	CERTSignedData sd;
-	void *tmpptr;
-
-	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-
-	if ( ! arena ) {
-		return(SECFailure);
-	}
-
-	PORT_Memset(&sd, 0, sizeof(CERTSignedData));
-	rv = SEC_QuickDERDecodeItem(arena, &sd, CERT_SignedDataTemplate, derCert);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	PORT_Memset(derName, 0, sizeof(SECItem));
-	rv = SEC_QuickDERDecodeItem(arena, derName, SEC_CertSerialNumberTemplate, &sd.data);
-
-	if ( rv ) {
-		goto loser;
-	}
-
-	tmpptr = derName->data;
-	derName->data = (unsigned char*)PORT_Alloc(derName->len);
-	if ( derName->data == NULL ) {
-		goto loser;
-	}
-
-	PORT_Memcpy(derName->data, tmpptr, derName->len);
-
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECSuccess);
-
-loser:
-	PORT_FreeArena(arena, PR_FALSE);
-	return(SECFailure);
-}
-
 CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hObject,	
 		CK_ATTRIBUTE_PTR pTemplate,	
@@ -609,7 +422,11 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 			case (CKA_LABEL):
 				value = NULL_PTR;
 				value_len = 0;
+				break;
 
+			case (CKA_ID):
+				value = NULL_PTR;
+				value_len = 0;
 				break;
 
 			default:
@@ -639,7 +456,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 {
 	CK_ULONG i;
 	GError *error = NULL;
-	gboolean status, att_token = FALSE, att_certificate = FALSE, att_issuer = FALSE;
+	gboolean status, att_token = FALSE, att_certificate = FALSE;
 	GList *addressbooks, *aux_addressbooks;
 	EBookClient *client_addressbook;
 	EBookClientCursor *cursor = NULL;
@@ -679,20 +496,24 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 				memcpy(label, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 				label[pTemplate[i].ulValueLen] = '\0';
 				break;
+
 			case CKA_NSS_EMAIL:
 				email = malloc(pTemplate[i].ulValueLen);
 				memcpy(label, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 				email[pTemplate[i].ulValueLen] = '\0';
 				break;
+
 			case CKA_ISSUER:
-				/* We don't search for certificates of a specific issuer */
-				att_issuer = TRUE;
+				session->att_issuer = TRUE;
+				session->search_issuer.data = malloc(pTemplate[i].ulValueLen);
+				memcpy(session->search_issuer.data, pTemplate[i].pValue, pTemplate[i].ulValueLen);
+				session->search_issuer.len = pTemplate[i].ulValueLen;
 				break;
 		}
 	}
 
 	/* Check if searching for persistent certificates */
-	if ( !(att_token || att_certificate) || att_issuer) return CKR_OK;
+	if ( !(att_token && att_certificate) ) return CKR_OK;
 
 	if (label && email) {
 		query = e_book_query_orv ( 
@@ -812,6 +633,14 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		while (results != NULL) {
 			obj = new_object (results->data, object_handle_counter++);
 			if (obj != NULL) {
+
+				if (session->att_issuer == TRUE && 
+						!compare_object_issuer (obj, &session->search_issuer) ) {
+					free (obj);
+					results = results->next;
+					continue;
+				}
+
 				phObject[n_objects] = obj->handle;
 				session->objects_found = g_slist_append(session->objects_found, obj);
 				n_objects++;
@@ -841,6 +670,14 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 	session->current_cursor = NULL;
 	g_slist_free_full (session->cursor_list, g_object_unref);
 	session->cursor_list = NULL;
+
+	if (session->att_issuer) {
+		session->att_issuer = FALSE;
+		free (session->search_issuer.data);
+		session->search_issuer.data = NULL;
+		session->search_issuer.len = 0;
+
+	}
 
 	return CKR_OK;
 }
