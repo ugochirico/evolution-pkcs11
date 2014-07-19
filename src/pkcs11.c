@@ -20,22 +20,22 @@ static CK_OBJECT_HANDLE object_handle_counter;
 
 /* Used to access evolution addressbook */
 static ESourceRegistry *registry;
-static EClientCache *client_cache;
 
 /* Single session for now */
 static Session *session;
 
 CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 {
-	GError *error;
+	GError *error = NULL;
 
 	object_handle_counter = 1;
 
 	registry = e_source_registry_new_sync (NULL, &error);
-	if (registry == NULL) return CKR_FUNCTION_FAILED;
-
-	client_cache = e_client_cache_new (registry);
-	if (client_cache == NULL) return CKR_FUNCTION_FAILED;
+	if (registry == NULL) {
+		g_warning ("evolution-pkcs11: Failed to get registry: %s\n", error->message);
+		g_error_free (error);
+		return CKR_FUNCTION_FAILED;
+	}
 	
 	return CKR_OK;
 }
@@ -44,9 +44,6 @@ CK_RV C_Finalize (CK_VOID_PTR pReserved)
 {
 	CK_RV rv = CKR_OK;
 	
-	//Close connection with addressbook sources
-	
-	g_object_unref (client_cache);
 	g_object_unref (registry);
 	
 	return rv;
@@ -222,8 +219,8 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 
 	session->handle = (CK_ULONG) 1;
 	session->search_on_going = FALSE;
-	session->search_objects = NULL;
-	session->search_objects_it = NULL;
+	session->cursor_list = NULL;
+	session->current_cursor = NULL;
 	session->objects_found = NULL;
 
 	*phSession =  session->handle;
@@ -558,6 +555,8 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 
 	object = g_slist_find_custom (session->objects_found, &hObject, object_compare_func);
 	
+	if (object == NULL) return CKR_OBJECT_HANDLE_INVALID;
+
 	derCert = ((Object *)object->data)->derCert;
 
 	for (i = 0; i < ulCount; i++){
@@ -639,15 +638,17 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 		CK_ULONG ulCount)		
 {
 	CK_ULONG i;
-	GError *error;
-	gboolean status, att_token = false, att_certificate = false;
+	GError *error = NULL;
+	gboolean status, att_token = FALSE, att_certificate = FALSE, att_issuer = FALSE;
 	GList *addressbooks, *aux_addressbooks;
 	EBookClient *client_addressbook;
+	EBookClientCursor *cursor = NULL;
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
 	EBookQuery *final_query, *query = NULL;
-	Object *obj;
-	GSList *contacts, *contacts_it;
+
+	EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
+	EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
 
 	/* Module is single session for now */
 	if (hSession != session->handle)
@@ -661,15 +662,16 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	 * a search for certificates */
 	for (i = 0; i < ulCount; i++) {
 		switch (pTemplate[i].type) {
+			/* Look only to attributes that concerns us */
 
 			case CKA_TOKEN:
 				if (*( (CK_BBOOL *)pTemplate[i].pValue) == CK_TRUE)
-					att_token = true;
+					att_token = TRUE;
 				break;
 
 			case CKA_CLASS:
 				if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_CERTIFICATE)
-					att_certificate = true;
+					att_certificate = TRUE;
 				break;
 
 			case CKA_LABEL:
@@ -682,11 +684,15 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 				memcpy(label, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 				email[pTemplate[i].ulValueLen] = '\0';
 				break;
+			case CKA_ISSUER:
+				/* We don't search for certificates of a specific issuer */
+				att_issuer = TRUE;
+				break;
 		}
 	}
 
 	/* Check if searching for persistent certificates */
-	if (!att_token && !att_certificate) return CKR_OK;
+	if ( !(att_token || att_certificate) || att_issuer) return CKR_OK;
 
 	if (label && email) {
 		query = e_book_query_orv ( 
@@ -714,33 +720,37 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
 
-		client_addressbook = (EBookClient *) e_client_cache_get_client_sync (client_cache, 
-				(ESource *) aux_addressbooks->data, 
-				E_SOURCE_EXTENSION_ADDRESS_BOOK, 
-				NULL, &error);
+		client_addressbook = (EBookClient *) e_book_client_connect_sync((ESource *) aux_addressbooks->data, NULL, &error);
+		if (client_addressbook == NULL) {
+			g_warning ("evolution-pkcs11: Failed to connect to addressbook: %s\n", error->message);
+			g_error_free (error);
 
-		status = e_book_client_get_contacts_sync (client_addressbook, query_string, &contacts, NULL, NULL);
-		// free (query_string);
-		if (status && contacts != NULL) {
-			/* Alocate a handle to each contact certificate found */
-			for (contacts_it = contacts; contacts_it != NULL; contacts_it = contacts_it->next){
-				obj = new_object(contacts_it->data, object_handle_counter++);
-				if (obj != NULL) {
-					session->search_objects = g_slist_append(session->search_objects, obj);
-				}
-			}
+			aux_addressbooks = aux_addressbooks->next;
+			continue;
+		}
 
-			g_slist_free_full (contacts, (GDestroyNotify) g_object_unref);
-			contacts = NULL;
-		} 
+		status = e_book_client_get_cursor_sync (client_addressbook, query_string, sort_fields, sort_types, 2, &cursor, NULL, &error);
+		if (status != TRUE) {
+			g_warning ("evolution-pkcs11: Failed to get cursor from addressbook: %s\n", error->message);
+			g_error_free (error);
+
+			aux_addressbooks = aux_addressbooks->next;
+			continue;
+		}
+
+		if (e_book_client_cursor_get_total (cursor) > 0) {
+			session->cursor_list = g_slist_append (session->cursor_list, cursor);
+		}
 
 		g_object_unref (client_addressbook);
 		aux_addressbooks = aux_addressbooks->next;
 	}
 
 	g_list_free_full (addressbooks, (GDestroyNotify) g_object_unref);
+	e_book_query_unref (final_query);
+	g_free (query_string);
 
-	session->search_objects_it = session->search_objects;
+	session->current_cursor = session->cursor_list;
 
 	return CKR_OK;
 }
@@ -751,7 +761,11 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		CK_ULONG ulMaxObjectCount,
 		CK_ULONG_PTR pulObjectCount)
 {
-	CK_ULONG i;
+	gint n_results, n_objects;
+	EBookClientCursor *cursor;
+	GSList *results;
+	Object *obj;
+	GError *error = NULL;
 
 	/* Module is single session for now */
 	if (hSession != session->handle) 
@@ -768,18 +782,45 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	if (ulMaxObjectCount < 1)
 		return CKR_BUFFER_TOO_SMALL;
 
-	*pulObjectCount = 0;
+	n_objects = 0;
+	while (n_objects < ulMaxObjectCount && session->current_cursor != NULL) {
+		results = NULL;
+		cursor = session->current_cursor->data;
+		n_results = e_book_client_cursor_step_sync(cursor,
+				E_BOOK_CURSOR_STEP_MOVE | E_BOOK_CURSOR_STEP_FETCH,
+				E_BOOK_CURSOR_ORIGIN_CURRENT,
+				ulMaxObjectCount - n_objects,
+				&results,
+				NULL, &error);
 
-	if (session->search_objects_it == NULL) return CKR_OK;
+		if (n_results < 0) {
+			g_warning ("evolution-pkcs11: Failed to step cursor: %s\n", error->message);
+			if (g_error_matches (error, E_CLIENT_ERROR, E_CLIENT_ERROR_OUT_OF_SYNC)) {
+			} else if (g_error_matches (error, E_CLIENT_ERROR, E_CLIENT_ERROR_QUERY_REFUSED)) {
+			} else {
+			}
+			g_error_free (error);
+		}
 
-	for (i = 0; i < ulMaxObjectCount; i++) {
-		if (session->search_objects_it != NULL) {
-			phObject[i] = ((Object *)session->search_objects_it->data)->handle;
-			*pulObjectCount+=1;
+		/* Check if cursor is depleated */
+		if (n_results < ulMaxObjectCount - n_objects ) {
+			/* Switch to next curson in the list */
+			session->current_cursor = session->cursor_list->next;
+		}
 
-			session->search_objects_it = session->search_objects_it->next;
+		/* Parse results */
+		while (results != NULL) {
+			obj = new_object (results->data, object_handle_counter++);
+			if (obj != NULL) {
+				phObject[n_objects] = obj->handle;
+				session->objects_found = g_slist_append(session->objects_found, obj);
+				n_objects++;
+			}
+			results = results->next;
 		}
 	}
+
+	*pulObjectCount = n_objects;
 
 	return CKR_OK;
 }
@@ -793,12 +834,13 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 
 	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
 
-	/* TODO treat repeated objects when merging list of objects */
-	session->objects_found = g_slist_concat (session->objects_found, session->search_objects);
+	/* TODO treat repeated objects found */
+	// session->objects_found
 
 	session->search_on_going = FALSE;
-	session->search_objects = NULL;
-	session->search_objects_it = NULL;
+	session->current_cursor = NULL;
+	g_slist_free_full (session->cursor_list, g_object_unref);
+	session->cursor_list = NULL;
 
 	return CKR_OK;
 }
