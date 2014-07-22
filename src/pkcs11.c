@@ -354,7 +354,7 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	CK_ATTRIBUTE_PTR current_attribute;
 	GSList *object;
 	SECItem *derCert, tempder;
-	CK_BBOOL sec_item;
+	CERTCertificate *certificate;
 	SECStatus sec_rv;
 	CK_VOID_PTR value;
 	CK_ULONG value_len;
@@ -371,10 +371,10 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	if (object == NULL) return CKR_OBJECT_HANDLE_INVALID;
 
 	derCert = ((Object *)object->data)->derCert;
+	certificate = ((Object *)object->data)->certificate;
 
 	for (i = 0; i < ulCount; i++){
 		current_attribute = &pTemplate[i];
-		sec_item = CK_FALSE;	
 		switch (current_attribute->type){
 
 			case (CKA_TOKEN):
@@ -395,28 +395,24 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				break;
 
 			case (CKA_ISSUER):
-				sec_rv = CERT_IssuerNameFromDERCert(derCert, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value = tempder.data;
-
-				sec_item = CK_TRUE;	
+				value = certificate->derIssuer.data;
+				value_len = certificate->derIssuer.len;
 				break;
 
 			case (CKA_SUBJECT):
-				sec_rv = CERT_NameFromDERCert(derCert, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value_len = tempder.len;
-				sec_item = CK_TRUE;	
+				value = certificate->derSubject.data;
+				value_len = certificate->derSubject.len;
 				break;
 
 			case (CKA_SERIAL_NUMBER):
-				sec_rv = CERT_SerialNumberFromDERCert(derCert, &tempder);
-				if (sec_rv != SECSuccess) continue;
-				value = tempder.data;
-				value_len = tempder.len;
-				sec_item = CK_TRUE;	
+				value = certificate->serialNumber.data;
+				value_len = certificate->serialNumber.len;
+				break;
+
+			case (CKA_CLASS):
+				p11_ulong = CKO_CERTIFICATE;
+				value = &p11_ulong;
+				value_len = sizeof (CK_ULONG);
 				break;
 
 			case (CKA_LABEL):
@@ -436,7 +432,6 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 		}
 
 		rv = set_attribute_template (current_attribute, value, value_len);
-		if (sec_item) PORT_Free (value);
 	}
 
 	return rv;

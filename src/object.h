@@ -5,6 +5,7 @@
 typedef struct Object {
 	CK_ULONG handle;
 	SECItem *derCert;
+	CERTCertificate *certificate;
 } Object;
 
 Object *new_object (EContact *contact, CK_ULONG handle);
