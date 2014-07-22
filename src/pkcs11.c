@@ -494,7 +494,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 			case CKA_NSS_EMAIL:
 				email = malloc(pTemplate[i].ulValueLen);
-				memcpy(label, pTemplate[i].pValue, pTemplate[i].ulValueLen);
+				memcpy(email, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 				email[pTemplate[i].ulValueLen] = '\0';
 				break;
 
