@@ -30,11 +30,15 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 	derCert->type = siDERCertBuffer;
 	derCert->data = malloc (cert->length);
 	if (derCert->data == NULL) { 
-		free (derCert);
+		e_contact_cert_free (cert);
+		SECITEM_FreeItem (derCert, PR_TRUE);
+		free (obj);
 		return NULL;
 	}
 	memcpy (derCert->data, cert->data, cert->length);
 	derCert->len = cert->length;
+
+	e_contact_cert_free (cert);
 
 	obj->derCert = derCert;
 	obj->certificate->derCert = *obj->derCert;
@@ -43,7 +47,9 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 	if (rv != SECSuccess )
 	{
 		g_warning ("evolution-pkcs11: Could not Decode Certificate.");
-		/* TODO Free obj */
+
+		SECITEM_FreeItem (derCert, PR_TRUE);
+		free (obj);
 		return NULL;
 	}
 
@@ -84,6 +90,7 @@ void destroy_object (gpointer data)
 {
 	Object *obj = (Object *) data;
 
-	free (obj->derCert);
-	// free (obj);
+	SECITEM_FreeItem (obj->derCert, PR_TRUE);
+	CERT_DestroyCertificate (obj->certificate);
+	free (obj);
 }

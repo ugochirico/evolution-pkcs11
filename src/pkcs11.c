@@ -237,7 +237,11 @@ CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
 
 	if (session->objects_found != NULL) {
 		g_slist_free_full (session->objects_found, destroy_object);
+		session->objects_found = NULL;
 	}
+
+	free (session);
+	session = NULL;
 
 	return CKR_OK;
 }
@@ -579,7 +583,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 {
 	gint n_results, n_objects;
 	EBookClientCursor *cursor;
-	GSList *results;
+	GSList *results = NULL, *results_it;
 	Object *obj;
 	GError *error = NULL;
 
@@ -625,14 +629,15 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		}
 
 		/* Parse results */
-		while (results != NULL) {
-			obj = new_object (results->data, object_handle_counter++);
+		results_it = results;
+		while (results_it != NULL) {
+			obj = new_object (results_it->data, object_handle_counter++);
 			if (obj != NULL) {
 
 				if (session->att_issuer == TRUE && 
 						!compare_object_issuer (obj, &session->search_issuer) ) {
 					free (obj);
-					results = results->next;
+					results_it = results_it->next;
 					continue;
 				}
 
@@ -640,8 +645,10 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 				session->objects_found = g_slist_append(session->objects_found, obj);
 				n_objects++;
 			}
-			results = results->next;
+			results_it = results_it->next;
 		}
+
+		if (results != NULL) g_slist_free_full (results, g_object_unref);
 	}
 
 	*pulObjectCount = n_objects;

@@ -98,8 +98,8 @@ int main (int argc, char **argv)
 
 	attribute_list_size = 3;
 	attribute_list[0].type = CKA_CLASS;
-	attribute_list[0].pValue = malloc (sizeof (CKA_CLASS));
-	*((CK_ULONG_PTR )attribute_list[0].pValue) = CKO_CERTIFICATE;
+	attribute_list[0].pValue = malloc (sizeof (CK_ULONG));
+	*((CK_ULONG_PTR )attribute_list[0].pValue) = (CK_ULONG) CKO_CERTIFICATE;
 	attribute_list[0].ulValueLen = sizeof (CKA_CLASS);
 
 	attribute_list[1].type = CKA_TOKEN;
@@ -117,6 +117,7 @@ int main (int argc, char **argv)
 	rv = pkcs11->C_FindObjectsInit (session_handle, attribute_list, attribute_list_size);
 	if (rv != CKR_OK) {
 		fprintf (stderr, "Could not C_FindObjectsInit\n");
+		return 0;
 	}
 
 	free (attribute_list[0].pValue);
@@ -126,6 +127,7 @@ int main (int argc, char **argv)
 	rv = pkcs11->C_FindObjects (session_handle, object_list, object_list_size, &objects_found);
 	if (rv != CKR_OK) {
 		fprintf (stderr, "Could not C_FindObjects\n");
+		return 0;
 	}
 
 	printf ("Objects found: %lu\n", objects_found);
@@ -133,6 +135,7 @@ int main (int argc, char **argv)
 	rv = pkcs11->C_FindObjectsFinal (session_handle);
 	if (rv != CKR_OK) {
 		fprintf (stderr, "Could not C_FindObjectsFinal\n");
+		return 0;
 	}
 
 	if (objects_found == 0) return 0;
@@ -164,6 +167,9 @@ int main (int argc, char **argv)
 		printf ("%02X:", ((CK_BYTE_PTR)attribute_value_list[0].pValue)[i] );
 	}
 	printf ("Issuer Size: %lu\n", attribute_value_list[1].ulValueLen);
+	for (i = 0; i < attribute_value_list[1].ulValueLen; i++) {
+		printf ("%02X:", ((CK_BYTE_PTR)attribute_value_list[1].pValue)[i] );
+	}
 
 
 	free(attribute_value_list[0].pValue);
@@ -179,7 +185,10 @@ int main (int argc, char **argv)
 		fprintf (stderr, "Could not C_Finalize\n");
 	}
 
-	dlclose(pkcs11_so);
+	rv = dlclose(pkcs11_so);
+	if (rv != 0) {
+		fprintf (stderr, "Could not dlclose\n");
+	}
 
 	return 0;
 }
