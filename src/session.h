@@ -10,4 +10,7 @@ typedef struct Session {
 
 	/* Objects that the session knows */
 	GSList *objects_found;
+
+	/* References */
+	gint ref;
 } Session;

@@ -209,6 +209,11 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 	if (flags & ~(CKF_SERIAL_SESSION | CKF_RW_SESSION))
 		return CKR_ARGUMENTS_BAD;
 
+	if (session != NULL) {
+		session->ref += 1;
+		return CKR_OK;
+	}
+
 	/* Module is single session for now */
 	session = malloc (sizeof(Session));
 	if (session == NULL)
@@ -222,6 +227,7 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 	session->search_issuer.data = NULL;
 	session->search_issuer.len = 0;
 	session->objects_found = NULL;
+	session->ref = 1;
 
 	*phSession =  session->handle;
 
@@ -234,6 +240,10 @@ CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
 	/* Module is single session for now */
 	if (hSession != session->handle) 
 		return CKR_SESSION_HANDLE_INVALID;
+
+	session->ref -= 1;
+
+	if (session->ref > 0) return CKR_OK;
 
 	if (session->objects_found != NULL) {
 		g_slist_free_full (session->objects_found, destroy_object);
