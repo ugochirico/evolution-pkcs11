@@ -2,6 +2,9 @@
 #include <libebook/libebook.h>
 #include <glib.h>
 
+#ifndef __EVO_PKCS11_OBJECT_H__
+#define __EVO_PKCS11_OBJECT_H__
+
 typedef struct Object {
 	CK_ULONG handle;
 	SECItem *derCert;
@@ -14,3 +17,5 @@ gboolean compare_object_issuer(Object *obj, SECItem *issuerName) ;
 gint object_compare_func (gconstpointer a, gconstpointer b);
 
 void destroy_object (gpointer data);
+
+#endif /* __EVO_PKCS11_OBJECT_H__ */

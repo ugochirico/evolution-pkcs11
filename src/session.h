@@ -1,3 +1,7 @@
+#include <nss3/certt.h>
+#include <glib.h>
+#include <libebook/libebook.h>
+#include "object.h"
 
 typedef struct Session {
 	CK_SESSION_HANDLE handle;
@@ -14,3 +18,5 @@ typedef struct Session {
 	/* References */
 	gint ref;
 } Session;
+
+gboolean session_object_exists (Session *session, EContact *contact, Object **object);

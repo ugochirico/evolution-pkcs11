@@ -595,6 +595,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	EBookClientCursor *cursor;
 	GSList *results = NULL, *results_it;
 	Object *obj;
+	gboolean obj_exists;
 	GError *error = NULL;
 
 	/* Module is single session for now */
@@ -641,18 +642,25 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		/* Parse results */
 		results_it = results;
 		while (results_it != NULL) {
-			obj = new_object (results_it->data, object_handle_counter++);
+			/* Check if we already have an object created for this result */
+			obj_exists = session_object_exists (session, results_it->data, &obj);
+
+			if (!obj_exists)
+				obj = new_object (results_it->data, object_handle_counter++);
+
 			if (obj != NULL) {
 
 				if (session->att_issuer == TRUE && 
 						!compare_object_issuer (obj, &session->search_issuer) ) {
+					/* Check if objects is of a specific issuer */
 					free (obj);
 					results_it = results_it->next;
 					continue;
 				}
 
 				phObject[n_objects] = obj->handle;
-				session->objects_found = g_slist_append(session->objects_found, obj);
+				if (!obj_exists)
+					session->objects_found = g_slist_append(session->objects_found, obj);
 				n_objects++;
 			}
 			results_it = results_it->next;
@@ -674,9 +682,6 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 		return CKR_SESSION_HANDLE_INVALID;
 
 	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
-
-	/* TODO treat repeated objects found */
-	// session->objects_found
 
 	session->search_on_going = FALSE;
 	session->current_cursor = NULL;
