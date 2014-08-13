@@ -2,7 +2,7 @@ AM_CFLAGS=-Wall -I/usr/include/nspr4 -I/home/yuuma/local/unstable/include/evolut
 
 
 lib_LTLIBRARIES = evolution-pkcs11.la
-evolution_pkcs11_la_SOURCES = pkcs11.c pkcs11.h pkcs11f.h pkcs11t.h object.h object.c session.h util.h util.c 
+evolution_pkcs11_la_SOURCES = pkcs11.c pkcs11.h pkcs11f.h pkcs11t.h object.h object.c session.h session.c util.h util.c
 evolution_pkcs11_la_LDFLAGS= -module 
 evolution_pkcs11_la_LIBADD = -ledataserver-1.2 -lebook-contacts-1.2  -lebook-1.2 -L/usr/lib64/evolution/3.10 -levolution-util
 
