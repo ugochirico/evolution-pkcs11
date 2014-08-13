@@ -2,7 +2,9 @@ AM_CFLAGS=-Wall -I/usr/include/evolution-data-server -I/usr/lib64/glib-2.0/inclu
 AM_LDFLAGS=-ldl 
 
 bin_PROGRAMS = test_app addressbook_access_test loadtest
-test_app_SOURCES = test-app.c
+test_app_SOURCES = test-app.c test-session.c test-search.c test-attribute-value.c
+test_app_LDADD = -lglib-2.0
+
 addressbook_access_test_SOURCES = addressbook-access-test.c 
 addressbook_access_test_LDADD = -ledataserver-1.2 -lebook-contacts-1.2  -lebook-1.2 -L/usr/lib64/evolution/3.10 -levolution-util
 loadtest_SOURCES = test.c
