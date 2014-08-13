@@ -1,8 +1,21 @@
+#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "dlfcn.h"
 #include "pkcs11.h"
+
+void print_info (CK_UTF8CHAR_PTR info, CK_ULONG size)
+{
+	gchar *string;
+
+	string = calloc (size, 1);
+	memcpy (string, info, size);
+
+	printf ("%s\n", string);
+
+	free (string);
+}
 
 int main (int argc, char **argv) 
 {
@@ -14,17 +27,16 @@ int main (int argc, char **argv)
 
 	CK_INFO info;
 	CK_SLOT_INFO slot_info;
-	CK_SLOT_ID slot_list[8];
-	CK_ULONG ulong, i;
+	CK_ULONG slot_list_size = 8;
+	CK_SLOT_ID slot_list[slot_list_size];
+
+	CK_TOKEN_INFO token_info;
+
+	CK_ULONG i;
 	CK_SESSION_HANDLE session_handle;
-	CK_ATTRIBUTE  attribute_list[16];
-	CK_ULONG attribute_list_size = 16;
 	CK_OBJECT_HANDLE object_list[16];
 	CK_ULONG object_list_size = 16, objects_found;
 	
-	CK_ATTRIBUTE  attribute_value_list[2];
-	CK_ULONG attribute_value_list_size = 2;
-
 	if (argc >= 2) 
 		lib_path = argv[1];
 
@@ -41,149 +53,83 @@ int main (int argc, char **argv)
 	}
 
 	C_GetFunctionList = (CK_RV (*)(CK_FUNCTION_LIST_PTR_PTR)) dlsym(pkcs11_so, "C_GetFunctionList");
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not load C_GetFunctionList\n");
-	}
 
 	rv = C_GetFunctionList (&pkcs11);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not get function list\n");
-	}
+	g_assert (rv == CKR_OK);
 
 	/**/
 	rv = pkcs11->C_Initialize (NULL);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_Initialize\n");
-	}
+	g_assert (rv == CKR_OK);
 	
-	/**/
 	rv = pkcs11->C_GetInfo (&info);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_GetInfo\n");
-	}
+	g_assert (rv == CKR_OK);
 
-	printf ("Info\n");
+	printf ("CK_INFO\n");
 	printf ("PKCS#11 version: %u.%u\n", 
 			info.cryptokiVersion.major,
 			info.cryptokiVersion.minor);
-	printf ("Manufacturer: %s\n", info.manufacturerID);
+	printf ("Manufacturer ID: %s\n", info.manufacturerID);
+	printf ("Flags: %lx\n", (CK_ULONG) info.flags);
+	printf ("Library Description: ");
+	print_info (info.libraryDescription, 32);
+	printf ("library version: %u.%u\n",
+			info.libraryVersion.major,
+			info.libraryVersion.minor);
 
-	/**/
-	ulong = 8;
-	rv = pkcs11->C_GetSlotList (CK_TRUE, slot_list, &ulong);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_GetSlotList\n");
-	}
+	rv = pkcs11->C_GetSlotList (CK_TRUE, slot_list, &slot_list_size);
+	g_assert (rv == CKR_OK);
 
-	printf ("Number of slots: %lu\n", ulong);
+	printf ("Number of slots: %lu\n", slot_list_size);
 	printf ("Slot number: ");
-	for (i = 0; i < ulong; i++) {
+	for (i = 0; i < slot_list_size; i++) {
 		printf ("%lu ", (CK_ULONG) slot_list[i]);
 	}
 	printf ("\n");
 
 	/**/
 	rv = pkcs11->C_GetSlotInfo (slot_list[0], &slot_info);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_GetSlotInfo\n");
-	}
+	g_assert (rv == CKR_OK);
 
-	/**/
-	/**/
+	printf ("CK_SLOT_INFO\n");
+	printf ("Slot description: ");
+	print_info (slot_info.slotDescription, 64);
+	printf ("Manufacturer ID: ");
+	print_info (slot_info.manufacturerID, 32);
+	printf ("Flags: %lx\n", slot_info.flags);
+	printf ("Hardware version: %u.%u\n",
+			slot_info.hardwareVersion.major,
+			slot_info.hardwareVersion.minor);
+	printf ("Firmware version: %u.%u\n",
+			slot_info.firmwareVersion.major,
+			slot_info.firmwareVersion.minor);
+
+	rv = pkcs11->C_GetTokenInfo (slot_list[0], &token_info);
+	g_assert (rv == CKR_OK);
+
+	test_session (pkcs11, slot_list[0]);
 
 	rv = pkcs11->C_OpenSession (slot_list[0], CKF_SERIAL_SESSION, NULL, NULL, &session_handle);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_OpenSession\n");
-	}
+	g_assert (rv == CKR_OK);
 
-	attribute_list_size = 3;
-	attribute_list[0].type = CKA_CLASS;
-	attribute_list[0].pValue = malloc (sizeof (CK_ULONG));
-	*((CK_ULONG_PTR )attribute_list[0].pValue) = (CK_ULONG) CKO_CERTIFICATE;
-	attribute_list[0].ulValueLen = sizeof (CKA_CLASS);
+	test_search (pkcs11,
+			slot_list[0],
+			session_handle,
+			string_to_search,
+			string_to_search_len,
+			object_list,
+			object_list_size,
+			&objects_found);
 
-	attribute_list[1].type = CKA_TOKEN;
-	attribute_list[1].pValue = malloc (sizeof (CK_BBOOL));
-	*((CK_BBOOL *)attribute_list[1].pValue) = CK_TRUE;
-	attribute_list[1].ulValueLen = sizeof (CK_BBOOL);
-
-	attribute_list[2].type = CKA_LABEL;
-	attribute_list[2].pValue = malloc (string_to_search_len+1);
-	memcpy( (CK_BYTE_PTR)attribute_list[2].pValue, string_to_search, string_to_search_len);
-	((CK_BYTE_PTR)attribute_list[2].pValue)[string_to_search_len] = '\0';
-	attribute_list[2].ulValueLen = string_to_search_len;
-
-
-	rv = pkcs11->C_FindObjectsInit (session_handle, attribute_list, attribute_list_size);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_FindObjectsInit\n");
-		return 0;
-	}
-
-	free (attribute_list[0].pValue);
-	free (attribute_list[1].pValue);
-	free (attribute_list[2].pValue);
-
-	rv = pkcs11->C_FindObjects (session_handle, object_list, object_list_size, &objects_found);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_FindObjects\n");
-		return 0;
-	}
-
-	printf ("Objects found: %lu\n", objects_found);
-
-	rv = pkcs11->C_FindObjectsFinal (session_handle);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_FindObjectsFinal\n");
-		return 0;
-	}
-
-	if (objects_found == 0) return 0;
-
-	attribute_value_list[0].type = CKA_VALUE;
-	attribute_value_list[0].pValue = NULL;
-	attribute_value_list[0].ulValueLen = 0;
-
-	attribute_value_list[1].type = CKA_ISSUER;
-	attribute_value_list[1].pValue = NULL;
-	attribute_value_list[1].ulValueLen = 0;
-
-	rv = pkcs11->C_GetAttributeValue (session_handle, object_list[0], attribute_value_list, attribute_value_list_size);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_GetAttributeValue\n");
-	}
-
-	attribute_value_list[0].pValue = malloc(attribute_value_list[0].ulValueLen);
-	attribute_value_list[1].pValue = malloc(attribute_value_list[1].ulValueLen);
-
-	rv = pkcs11->C_GetAttributeValue (session_handle, object_list[0], attribute_value_list, attribute_value_list_size);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_GetAttributeValue\n");
-	}
-
-	printf ("Value Size: %lu\n", attribute_value_list[0].ulValueLen);
-	printf ("Certificate: ");
-	for (i = 0; i < attribute_value_list[0].ulValueLen; i++) {
-		printf ("%02X:", ((CK_BYTE_PTR)attribute_value_list[0].pValue)[i] );
-	}
-	printf ("Issuer Size: %lu\n", attribute_value_list[1].ulValueLen);
-	for (i = 0; i < attribute_value_list[1].ulValueLen; i++) {
-		printf ("%02X:", ((CK_BYTE_PTR)attribute_value_list[1].pValue)[i] );
-	}
-
-
-	free(attribute_value_list[0].pValue);
-	free(attribute_value_list[1].pValue);
+	test_attribute_value (pkcs11,
+			slot_list[0],
+			session_handle,
+			object_list[0]);
 
 	rv = pkcs11->C_CloseSession(session_handle);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_CloseSession\n");
-	}
+	g_assert (rv == CKR_OK);
 
 	rv = pkcs11->C_Finalize (NULL);
-	if (rv != CKR_OK) {
-		fprintf (stderr, "Could not C_Finalize\n");
-	}
+	g_assert (rv == CKR_OK);
 
 	rv = dlclose(pkcs11_so);
 	if (rv != 0) {
