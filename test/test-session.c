@@ -1,7 +1,7 @@
 #include <glib.h>
 #include "pkcs11.h"
 
-void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID) 
+void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID)
 {
 	CK_SESSION_HANDLE session_list[16];
 	CK_SESSION_HANDLE session;
@@ -11,7 +11,7 @@ void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID)
 
 	rv = pkcs11->C_CloseSession (session_list[0]);
 	g_assert (rv == CKR_SESSION_HANDLE_INVALID);
-	
+
 	rv = pkcs11->C_OpenSession (slotID, flags, NULL, NULL, &session_list[0]);
 	g_assert (rv == CKR_OK);
 	rv = pkcs11->C_CloseSession (session_list[0]);
@@ -33,7 +33,7 @@ void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID)
 
 	rv = pkcs11->C_OpenSession (slotID, flags, NULL, NULL, &session);
 	g_assert (rv == CKR_SESSION_COUNT);
-	
+
 	for (i = 0; i < 16; i++) {
 		rv = pkcs11->C_CloseSession (session_list[i]);
 		g_assert (rv == CKR_OK);

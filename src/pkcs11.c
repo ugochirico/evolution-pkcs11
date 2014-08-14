@@ -18,9 +18,6 @@ static CK_OBJECT_HANDLE object_handle_counter;
 /* Used to access evolution addressbook */
 static ESourceRegistry *registry;
 
-/* Single session for now */
-static Session *session;
-
 CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 {
 	GError *error = NULL;
@@ -33,6 +30,8 @@ CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 		g_error_free (error);
 		return CKR_FUNCTION_FAILED;
 	}
+
+	session_init_all_sessions ();
 	
 	return CKR_OK;
 }
@@ -202,6 +201,7 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 		    CK_NOTIFY Notify,
 		    CK_SESSION_HANDLE_PTR phSession)
 {			
+	Session *session = NULL;
 
 	if (!(flags & CKF_SERIAL_SESSION))
 		return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
@@ -209,25 +209,8 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 	if (flags & ~(CKF_SERIAL_SESSION | CKF_RW_SESSION))
 		return CKR_ARGUMENTS_BAD;
 
-	if (session != NULL) {
-		session->ref += 1;
-		return CKR_OK;
-	}
-
-	/* Module is single session for now */
-	session = malloc (sizeof(Session));
-	if (session == NULL)
-		return CKR_HOST_MEMORY;
-
-	session->handle = (CK_ULONG) 1;
-	session->search_on_going = FALSE;
-	session->cursor_list = NULL;
-	session->current_cursor = NULL;
-	session->att_issuer = FALSE;
-	session->search_issuer.data = NULL;
-	session->search_issuer.len = 0;
-	session->objects_found = NULL;
-	session->ref = 1;
+	session = session_open_session ();
+	if (session == NULL) return CKR_SESSION_COUNT;
 
 	*phSession =  session->handle;
 
@@ -236,22 +219,11 @@ CK_RV C_OpenSession (CK_SLOT_ID slotID,
 
 
 CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
-{			
-	/* Module is single session for now */
-	if (hSession != session->handle) 
+{
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
 
-	session->ref -= 1;
-
-	if (session->ref > 0) return CKR_OK;
-
-	if (session->objects_found != NULL) {
-		g_slist_free_full (session->objects_found, destroy_object);
-		session->objects_found = NULL;
-	}
-
-	free (session);
-	session = NULL;
+	session_close_session (hSession);
 
 	return CKR_OK;
 }
@@ -260,14 +232,15 @@ CK_RV C_CloseAllSessions (CK_SLOT_ID slotID)
 {			
 	CK_RV rv = CKR_OK;
 
+	session_close_all_sessions (slotID);
+
 	return rv;
 }
 
 CK_RV C_GetSessionInfo (CK_SESSION_HANDLE hSession,
 		       CK_SESSION_INFO_PTR pInfo)
 {			
-	/* Module is single session for now */
-	if (hSession != session->handle)
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
 
 	if (pInfo == NULL_PTR)
@@ -367,18 +340,19 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	CK_ULONG i;
 	CK_ATTRIBUTE_PTR current_attribute;
 	GSList *object;
-	SECItem *derCert, tempder;
+	SECItem *derCert;
 	CERTCertificate *certificate;
-	SECStatus sec_rv;
 	CK_VOID_PTR value;
 	CK_ULONG value_len;
+	Session *session = NULL;
 
 	CK_BBOOL p11_boolean;
 	CK_ULONG p11_ulong;
 
-	/* Module is single session for now */
-	if (hSession != session->handle)
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
+
+	session = session_get_session (hSession);
 
 	object = g_slist_find_custom (session->objects_found, &hObject, object_compare_func);
 	
@@ -472,13 +446,15 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
 	EBookQuery *final_query, *query = NULL;
+	Session *session = NULL;
 
 	EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
 	EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
 
-	/* Module is single session for now */
-	if (hSession != session->handle)
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
+
+	session = session_get_session (hSession);
 
 	if (session->search_on_going) return CKR_OPERATION_ACTIVE;
 
@@ -597,10 +573,12 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	Object *obj;
 	gboolean obj_exists;
 	GError *error = NULL;
+	Session *session = NULL;
 
-	/* Module is single session for now */
-	if (hSession != session->handle) 
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
+
+	session = session_get_session (hSession);
 
 	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
 
@@ -677,9 +655,12 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 {
-	/* Module is single session for now */
-	if (hSession != session->handle)
+	Session *session = NULL;
+
+	if (!session_is_session_valid (hSession))
 		return CKR_SESSION_HANDLE_INVALID;
+
+	session = session_get_session (hSession);
 
 	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
 

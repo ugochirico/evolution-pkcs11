@@ -11,7 +11,7 @@ void test_attribute_value (CK_FUNCTION_LIST_PTR pkcs11,
 {
 	CK_RV rv = CKR_OK;
 	CK_ATTRIBUTE  attribute_list[16];
-	CK_ULONG attribute_list_size = 16, i;
+	CK_ULONG attribute_list_size = 2, i;
 
 	attribute_list[0].type = CKA_VALUE;
 	attribute_list[0].pValue = NULL;
@@ -35,10 +35,13 @@ void test_attribute_value (CK_FUNCTION_LIST_PTR pkcs11,
 	for (i = 0; i < attribute_list[0].ulValueLen; i++) {
 		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[0].pValue)[i] );
 	}
+	printf ("\n");
+
 	printf ("Issuer Size: %lu\n", attribute_list[1].ulValueLen);
 	for (i = 0; i < attribute_list[1].ulValueLen; i++) {
 		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[1].pValue)[i] );
 	}
+	printf ("\n");
 
 	free(attribute_list[0].pValue);
 	free(attribute_list[1].pValue);

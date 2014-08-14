@@ -14,9 +14,14 @@ typedef struct Session {
 
 	/* Objects that the session knows */
 	GSList *objects_found;
-
-	/* References */
-	gint ref;
 } Session;
+
+void session_init_all_sessions ();
+void session_init_session (Session *session);
+gboolean session_is_session_valid (CK_SESSION_HANDLE hSession);
+Session *session_open_session ();
+Session *session_get_session (CK_SESSION_HANDLE hSession);
+void session_close_session (CK_SESSION_HANDLE hSession);
+void session_close_all_sessions (CK_SLOT_ID slotID);
 
 gboolean session_object_exists (Session *session, EContact *contact, Object **object);

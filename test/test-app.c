@@ -5,6 +5,22 @@
 #include "dlfcn.h"
 #include "pkcs11.h"
 
+extern void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID);
+
+extern void test_search (
+		CK_FUNCTION_LIST_PTR pkcs11,
+		CK_SLOT_ID slotID,
+		CK_SESSION_HANDLE session_handle,
+		char *string_to_search,
+		unsigned int string_to_search_len,
+		CK_OBJECT_HANDLE_PTR object_list,
+		CK_ULONG object_list_size,
+		CK_ULONG_PTR objects_found);
+extern void test_attribute_value (CK_FUNCTION_LIST_PTR pkcs11,
+		CK_SLOT_ID slotID,
+		CK_SESSION_HANDLE session_handle,
+		CK_OBJECT_HANDLE object_handle);
+
 void print_info (CK_UTF8CHAR_PTR info, CK_ULONG size)
 {
 	gchar *string;
