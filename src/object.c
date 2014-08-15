@@ -73,12 +73,6 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 		return NULL;
 	}
 
-	// SECKEYPublicKey *pubkey = NULL;
-	// pubkey = SECKEY_ExtractPublicKey(&obj->certificate->subjectPublicKeyInfo.subjectPublicKey);
-	// pubkey = SECKEY_DecodeDERPublicKey(&obj->certificate->subjectPublicKeyInfo.subjectPublicKey);
-	// pubkey = SECKEY_ImportDERPublicKey(&obj->certificate->subjectPublicKeyInfo.subjectPublicKey, CKK_RSA);
-	// if (pubkey == NULL) return NULL;
-
 	return obj;
 }
 
@@ -88,9 +82,7 @@ gboolean compare_object_issuer(Object *obj, SECItem *issuerName)
 	SECItem tempder;
 	gboolean rv = FALSE;
 
-	// sec_rv = CERT_IssuerNameFromDERCert(obj->derCert, &tempder);
 	tempder = obj->certificate->derIssuer;	
-	// if (sec_rv != SECSuccess) return FALSE;
 
 	if (!memcmp (tempder.data, issuerName->data, MIN(issuerName->len, tempder.len))) rv = TRUE;
 

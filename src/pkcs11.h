@@ -36,24 +36,6 @@ extern "C" {
  * convention on packing is that structures should be 1-byte
  * aligned.
  *
- * If you're using Microsoft Developer Studio 5.0 to produce
- * Win32 stuff, this might be done by using the following
- * preprocessor directive before including pkcs11.h or pkcs11t.h:
- *
- * #pragma pack(push, cryptoki, 1)
- *
- * and using the following preprocessor directive after including
- * pkcs11.h or pkcs11t.h:
- *
- * #pragma pack(pop, cryptoki)
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to produce Win16 stuff, this might be done by using
- * the following preprocessor directive before including
- * pkcs11.h or pkcs11t.h:
- *
- * #pragma pack(1)
- *
  * In a UNIX environment, you're on your own for this.  You might
  * not need to do (or be able to do!) anything.
  *
@@ -65,16 +47,6 @@ extern "C" {
  * object.  It can be used like this:
  *
  * typedef CK_BYTE CK_PTR CK_BYTE_PTR;
- *
- * If you're using Microsoft Developer Studio 5.0 to produce
- * Win32 stuff, it might be defined by:
- *
- * #define CK_PTR *
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to produce Win16 stuff, it might be defined by:
- *
- * #define CK_PTR far *
  *
  * In a typical UNIX environment, it might be defined by:
  */
@@ -94,19 +66,6 @@ extern "C" {
  *   ...
  * }
  *
- * If you're using Microsoft Developer Studio 5.0 to define a
- * function in a Win32 Cryptoki .dll, it might be defined by:
- *
- * #define CK_DEFINE_FUNCTION(returnType, name) \
- *   returnType __declspec(dllexport) name
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to define a function in a Win16 Cryptoki .dll, it
- * might be defined by:
- *
- * #define CK_DEFINE_FUNCTION(returnType, name) \
- *   returnType __export _far _pascal name
- *
  * In a UNIX environment, it might be defined by:
  */
  #define CK_DEFINE_FUNCTION(returnType, name) \
@@ -121,19 +80,6 @@ extern "C" {
  * extern CK_DECLARE_FUNCTION(CK_RV, C_Initialize)(
  *   CK_VOID_PTR pReserved
  * );
- *
- * If you're using Microsoft Developer Studio 5.0 to declare a
- * function in a Win32 Cryptoki .dll, it might be defined by:
- *
- * #define CK_DECLARE_FUNCTION(returnType, name) \
- *   returnType __declspec(dllimport) name
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to declare a function in a Win16 Cryptoki .dll, it
- * might be defined by:
- *
- * #define CK_DECLARE_FUNCTION(returnType, name) \
- *   returnType __export _far _pascal name
  *
  * In a UNIX environment, it might be defined by:
  */
@@ -159,19 +105,6 @@ extern "C" {
  * typedef CK_DECLARE_FUNCTION_POINTER(CK_RV, funcPtrType)(args);
  * funcPtrType funcPtr;
  *
- * If you're using Microsoft Developer Studio 5.0 to access
- * functions in a Win32 Cryptoki .dll, in might be defined by:
- *
- * #define CK_DECLARE_FUNCTION_POINTER(returnType, name) \
- *   returnType __declspec(dllimport) (* name)
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to access functions in a Win16 Cryptoki .dll, it might
- * be defined by:
- *
- * #define CK_DECLARE_FUNCTION_POINTER(returnType, name) \
- *   returnType __export _far _pascal (* name)
- *
  * In a UNIX environment, it might be defined by:
  */
  #define CK_DECLARE_FUNCTION_POINTER(returnType, name) \
@@ -191,18 +124,6 @@ extern "C" {
  *
  * typedef CK_CALLBACK_FUNCTION(CK_RV, myCallbackType)(args);
  * myCallbackType myCallback;
- *
- * If you're using Microsoft Developer Studio 5.0 to do Win32
- * Cryptoki development, it might be defined by:
- *
- * #define CK_CALLBACK_FUNCTION(returnType, name) \
- *   returnType (* name)
- *
- * If you're using an earlier version of Microsoft Developer
- * Studio to do Win16 development, it might be defined by:
- *
- * #define CK_CALLBACK_FUNCTION(returnType, name) \
- *   returnType _far _pascal (* name)
  *
  * In a UNIX environment, it might be defined by:
  */
