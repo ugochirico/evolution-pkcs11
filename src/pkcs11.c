@@ -31,7 +31,7 @@
 extern CK_FUNCTION_LIST pkcs11_function_list;
 
 static CK_UTF8CHAR manufacturerID[] =		"Yuuma Sato                      ";
-static CK_UTF8CHAR libraryDescription[] =	"CertModule PKCS#11 API          ";
+static CK_UTF8CHAR libraryDescription[] =	"Evolution PKCS#11 Module        ";
 
 static CK_OBJECT_HANDLE object_handle_counter;
 
@@ -92,7 +92,7 @@ CK_RV C_GetInfo (CK_INFO_PTR pInfo)
 		  libraryDescription,
 		  32);
 	pInfo->libraryVersion.major = 0;
-	pInfo->libraryVersion.minor = 0; 
+	pInfo->libraryVersion.minor = 1; 
 
 	return rv;
 }
@@ -124,7 +124,7 @@ CK_RV C_GetSlotList (CK_BBOOL tokenPresent,
 CK_RV C_GetSlotInfo (CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 {
 
-	CK_UTF8CHAR slotDescription[] = "Slot unico do modulo                                            "; 
+	CK_UTF8CHAR slotDescription[] = "Unique Software Slot                                            "; 
 
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
@@ -136,7 +136,7 @@ CK_RV C_GetSlotInfo (CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 	pInfo->hardwareVersion.major = 0;
 	pInfo->hardwareVersion.minor = 0;
 	pInfo->firmwareVersion.major = 0;
-	pInfo->firmwareVersion.minor = 1;
+	pInfo->firmwareVersion.minor = 0;
 
 	return CKR_OK;
 }
@@ -146,9 +146,9 @@ CK_RV C_GetTokenInfo (CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
-	CK_UTF8CHAR label[] =	"Token Addressbook               ";
-	CK_UTF8CHAR model[] =	"modelo virtual  ";
-	CK_UTF8CHAR serial[] =	"0123456789ABCDEF";
+	CK_UTF8CHAR label[] =	"Evolution Contact Certificates  ";
+	CK_UTF8CHAR model[] =	"Virtual Model   ";
+	CK_UTF8CHAR serial[] =	"0000000000000001";
 
 	memset (pInfo, 0, sizeof (CK_TOKEN_INFO));
 	memcpy (pInfo->label,label , 32); 
