@@ -1,79 +1,85 @@
+/*
+ * evolution-pkcs11
+ *
+ * Copyright (C) 2014  Yuuma Sato
+ *
+ * evolution-pkcs11 is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * evolution-pkcs11 is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with evolution-pkcs11.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include "pkcs11.h"
 #include <stdio.h>
+#include <prerror.h>
 #include <nss3/nss.h>
 #include <nss3/secmod.h>
 #include <nss3/cert.h>
 #include <nss3/certt.h>
 
-char *passwdcb (PK11SlotInfo *info, PRBool retry, void *arg)
-{
-	  if (!retry)
-		      return PL_strdup ("");
-	    else
-			    return NULL;
+void print_loaded_modules () {
+	SECMODModuleList *list;
+
+	list = SECMOD_GetDefaultModuleList ();
+
+	printf ("Modules list\n");
+	while (list != NULL) {
+		if (list->module != NULL) {
+			printf ("Module name: %s\n", list->module->commonName);
+		}
+		list = list->next;
+	}
 }
 
 int main (int argc, char **argv) 
 {
-	int rv;
-	SECStatus s;
-	CERTCertDBHandle *db_handle;
-	CERTCertList *cert_list = NULL;
-	CERTCertificate *cert = NULL;
-	SECMODModule *internal_module = NULL;
-	PK11SlotInfo *slot = NULL;
-	CK_SLOT_INFO ck_slot_info;
-	char token_name[] = "Token Addressbook               ";
-	PRBool b;
+	CK_RV rv = CKR_OK;
+	char *module_spec;
+	SECMODModule *module;
+	SECStatus status = SECSuccess;
+	CK_FUNCTION_LIST_PTR pkcs11;
 
-	/* Initialize */
-	PK11_SetPasswordFunc (passwdcb);
-	s = NSS_InitReadWrite ("/home/yuuma/.pki/nssdb/");	
-	if (s != SECSuccess) {
-		rv = 1;
-		goto _fail;
+	print_loaded_modules();
+
+	module_spec = "library=/home/yuuma/local/lib/evolution-pkcs11.so name=YUUMA_MODULE";
+	module = SECMOD_LoadUserModule(module_spec, NULL, PR_FALSE);
+	if (module == NULL || !module->loaded) {
+		const PRErrorCode err = PR_GetError();
+		fprintf(stderr, "error: NSPR error code %d: %s\n",
+				err, PR_ErrorToName(err));
 	}
 
-	slot = PK11_FindSlotByName (token_name);
-	if (slot == NULL){
-		rv = 3;
-		goto _fail;
+	if (module->functionList == NULL) {
+		fprintf (stderr, "FunctionList empty\n");
+	}
+	pkcs11 = module->functionList;
+
+	rv = pkcs11->C_Finalize(NULL);
+	if (rv != CKR_OK) {
+		fprintf (stderr, "Could not C_Finalize\n");
 	}
 
-	s = PK11_GetSlotInfo (slot, &ck_slot_info);
-	if (s != SECSuccess) {
-		rv = 31;
-		goto _fail;
-	}
+	print_loaded_modules();
 
-	printf ("Slot Description: [%s]\n", ck_slot_info.slotDescription);
+	char character;
+	scanf ("%c", &character);
 
-	b = PK11_NeedLogin (slot);
-	if (b) 
-		printf ("Slot needs login\n");
-	else
-		printf ("Slot doesn't need login\n");
+	// SECMOD_DestroyModule (module);
+	// status = SECMOD_UnloadUserModule (module);
+	if (status != SECSuccess)
+		fprintf (stderr, "Error unloading module\n");
 
-	b = PK11_IsLoggedIn (slot, NULL);
-	if (b) 
-		printf ("Slot logged in\n");
-	else
-		printf ("Slot not logged in\n");
+	print_loaded_modules();
 
-	b = PK11_IsFriendly (slot);
-	if (b) 
-		printf ("Slot is friendly\n");
-	else
-		printf ("Slot unfriendly\n");
-
-	cert_list = PK11_FindCertsFromEmailAddress ("satoyuuma@gmail.com", NULL);
-	if (cert_list == NULL){
-		rv = 4;
-		goto _fail;
-	}
-
-_fail:
-	printf ("RV: [%x]\n", rv);
-	NSS_Shutdown();
 	return rv;
 }
 
