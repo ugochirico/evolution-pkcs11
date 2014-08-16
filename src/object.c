@@ -19,12 +19,6 @@
  */
 
 #include "object.h"
-#include <nss3/cert.h>
-#include <nss3/base64.h>
-#include <nss3/secerr.h>
-#include <nss3/secpkcs7.h>
-#include <nss3/pk11pub.h>
-#include <nss3/keyhi.h>
 
 Object *new_object (EContact *contact, CK_ULONG handle) 
 {
@@ -36,6 +30,7 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 
 	cert = e_contact_get (contact, E_CONTACT_X509_CERT);
 	if (cert == NULL) {
+		g_warning ("evolution-pkcs11: Could not get contact's certificate.\n");
 		return NULL;
 	}
 
@@ -78,13 +73,13 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 
 gboolean compare_object_issuer(Object *obj, SECItem *issuerName) 
 {
-	SECStatus sec_rv;
 	SECItem tempder;
 	gboolean rv = FALSE;
 
 	tempder = obj->certificate->derIssuer;	
 
-	if (!memcmp (tempder.data, issuerName->data, MIN(issuerName->len, tempder.len))) rv = TRUE;
+	if (!memcmp (tempder.data, issuerName->data, MIN(issuerName->len, tempder.len)))
+		rv = TRUE;
 
 	return rv;
 }

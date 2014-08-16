@@ -23,7 +23,6 @@
 #include "session.h"
 #include "util.h"
 #include <libebook/libebook.h>
-#include <shell/e-shell.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -58,11 +57,9 @@ CK_RV C_Initialize (CK_VOID_PTR pInitArgs)
 
 CK_RV C_Finalize (CK_VOID_PTR pReserved)
 {
-	CK_RV rv = CKR_OK;
-	
 	g_object_unref (registry);
 	
-	return rv;
+	return CKR_OK;
 }
 
 CK_RV C_GetFunctionList (CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
@@ -76,8 +73,6 @@ CK_RV C_GetFunctionList (CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
 
 CK_RV C_GetInfo (CK_INFO_PTR pInfo)
 {
-	CK_RV rv = CKR_OK;
-
 	if (pInfo == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
 
@@ -94,7 +89,7 @@ CK_RV C_GetInfo (CK_INFO_PTR pInfo)
 	pInfo->libraryVersion.major = 0;
 	pInfo->libraryVersion.minor = 1; 
 
-	return rv;
+	return CKR_OK;
 }
 
 CK_RV C_GetSlotList (CK_BBOOL tokenPresent,  
@@ -119,7 +114,6 @@ CK_RV C_GetSlotList (CK_BBOOL tokenPresent,
 
 	return CKR_OK;
 }
-
 
 CK_RV C_GetSlotInfo (CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 {
@@ -250,11 +244,9 @@ CK_RV C_CloseSession (CK_SESSION_HANDLE hSession)
 
 CK_RV C_CloseAllSessions (CK_SLOT_ID slotID)
 {			
-	CK_RV rv = CKR_OK;
-
 	session_close_all_sessions (slotID);
 
-	return rv;
+	return CKR_OK;
 }
 
 CK_RV C_GetSessionInfo (CK_SESSION_HANDLE hSession,
@@ -627,8 +619,14 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		if (n_results < 0) {
 			g_warning ("evolution-pkcs11: Failed to step cursor: %s\n", error->message);
 			if (g_error_matches (error, E_CLIENT_ERROR, E_CLIENT_ERROR_OUT_OF_SYNC)) {
+				/* The addressbook has been modified at the same time we asked to step */
+				/* TODO - wait for the refresh signal before trying to step again */
 			} else if (g_error_matches (error, E_CLIENT_ERROR, E_CLIENT_ERROR_QUERY_REFUSED)) {
+				/* It means we are at the end of the contact list. 
+				 * There is no need to do anything, just move to the next cursor in the list */
 			} else {
+				g_warning ("evolution-pkcs11: Error when stepping cursor: %s\n", error->message);
+				/* The negative result of n_results will imply in moving to the next cursor in the list */
 			}
 			g_error_free (error);
 		}
@@ -698,20 +696,16 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 		free (session->search_issuer.data);
 		session->search_issuer.data = NULL;
 		session->search_issuer.len = 0;
-
 	}
 
 	return CKR_OK;
 }
-
 
 CK_RV C_DigestInit (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
-
 
 CK_RV C_Digest (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,	
@@ -722,8 +716,6 @@ CK_RV C_Digest (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
-
 CK_RV C_DigestUpdate (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pPart,	
 		CK_ULONG ulPartLen)	
@@ -731,14 +723,11 @@ CK_RV C_DigestUpdate (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
-
 CK_RV C_DigestKey (CK_SESSION_HANDLE hSession,
 		CK_OBJECT_HANDLE hKey)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_DigestFinal (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pDigest,	
@@ -746,8 +735,6 @@ CK_RV C_DigestFinal (CK_SESSION_HANDLE hSession,
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
-
 
 CK_RV C_SignInit (CK_SESSION_HANDLE hSession,		
 		CK_MECHANISM_PTR pMechanism,
@@ -765,8 +752,6 @@ CK_RV C_Sign (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
-
 CK_RV C_SignUpdate (CK_SESSION_HANDLE hSession,
 		CK_BYTE_PTR pPart,	
 		CK_ULONG ulPartLen)	
@@ -774,16 +759,12 @@ CK_RV C_SignUpdate (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
-
 CK_RV C_SignFinal (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pSignature,	
 		CK_ULONG_PTR pulSignatureLen)
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
-
 
 CK_RV C_SignRecoverInit (CK_SESSION_HANDLE hSession,	
 		CK_MECHANISM_PTR pMechanism,	
@@ -801,14 +782,12 @@ CK_RV C_SignRecover (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
 CK_RV C_EncryptInit (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism,	
 		CK_OBJECT_HANDLE hKey)	
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_Encrypt (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pData,
@@ -842,7 +821,6 @@ CK_RV C_DecryptInit (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
 CK_RV C_Decrypt (CK_SESSION_HANDLE hSession,	
 		CK_BYTE_PTR pEncryptedData,
 		CK_ULONG ulEncryptedDataLen,
@@ -851,7 +829,6 @@ CK_RV C_Decrypt (CK_SESSION_HANDLE hSession,
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_DecryptUpdate (CK_SESSION_HANDLE hSession,
 		      CK_BYTE_PTR pEncryptedPart,	
@@ -926,8 +903,6 @@ CK_RV C_GenerateKeyPair (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
-
 CK_RV C_WrapKey (CK_SESSION_HANDLE hSession,
 		CK_MECHANISM_PTR pMechanism,
 		CK_OBJECT_HANDLE hWrappingKey,
@@ -960,7 +935,6 @@ CK_RV C_DeriveKey (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
 CK_RV C_SeedRandom (CK_SESSION_HANDLE hSession,
 		   CK_BYTE_PTR pSeed,
 		   CK_ULONG ulSeedLen)
@@ -974,7 +948,6 @@ CK_RV C_GenerateRandom (CK_SESSION_HANDLE hSession,
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_GetFunctionStatus (CK_SESSION_HANDLE hSession)
 {	
@@ -993,7 +966,6 @@ CK_RV C_VerifyInit (CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-
 CK_RV C_Verify (CK_SESSION_HANDLE hSession,
 	       CK_BYTE_PTR pData,
 	       CK_ULONG ulDataLen,
@@ -1002,7 +974,6 @@ CK_RV C_Verify (CK_SESSION_HANDLE hSession,
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_VerifyUpdate (CK_SESSION_HANDLE hSession,
 		     CK_BYTE_PTR pPart,
@@ -1018,7 +989,6 @@ CK_RV C_VerifyFinal (CK_SESSION_HANDLE hSession,
 {
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
-
 
 CK_RV C_VerifyRecoverInit (CK_SESSION_HANDLE hSession,
 			  CK_MECHANISM_PTR pMechanism,
