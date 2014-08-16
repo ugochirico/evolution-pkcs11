@@ -18,10 +18,11 @@
  *
  */
 
-#include <nss3/certt.h>
-#include <glib.h>
-#include <libebook/libebook.h>
+#ifndef __EVO_PKCS11_SESSION_H__
+#define __EVO_PKCS11_SESSION_H__
+
 #include "object.h"
+#include <libebook/libebook.h>
 
 typedef struct Session {
 	CK_SESSION_HANDLE handle;
@@ -45,3 +46,5 @@ void session_close_session (CK_SESSION_HANDLE hSession);
 void session_close_all_sessions (CK_SLOT_ID slotID);
 
 gboolean session_object_exists (Session *session, EContact *contact, Object **object);
+
+#endif /* __EVO_PKCS11_SESSION_H__ */

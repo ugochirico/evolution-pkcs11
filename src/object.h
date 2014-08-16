@@ -18,12 +18,12 @@
  *
  */
 
-#include <nss3/certt.h>
-#include <libebook/libebook.h>
-#include <glib.h>
-
 #ifndef __EVO_PKCS11_OBJECT_H__
 #define __EVO_PKCS11_OBJECT_H__
+
+#include <nss3/cert.h>
+#include <libebook/libebook.h>
+#include <glib.h>
 
 typedef struct Object {
 	CK_ULONG handle;
