@@ -53,13 +53,13 @@ void test_attribute_value (CK_FUNCTION_LIST_PTR pkcs11,
 	printf ("Value Size: %lu\n", attribute_list[0].ulValueLen);
 	printf ("Certificate: ");
 	for (i = 0; i < attribute_list[0].ulValueLen; i++) {
-		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[0].pValue)[i] );
+		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[0].pValue)[i]);
 	}
 	printf ("\n");
 
 	printf ("Issuer Size: %lu\n", attribute_list[1].ulValueLen);
 	for (i = 0; i < attribute_list[1].ulValueLen; i++) {
-		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[1].pValue)[i] );
+		printf ("%02X:", ((CK_BYTE_PTR)attribute_list[1].pValue)[i]);
 	}
 	printf ("\n");
 

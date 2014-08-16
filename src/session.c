@@ -110,6 +110,8 @@ void session_close_session (CK_SESSION_HANDLE hSession)
 	session_init_session (session);
 }
 
+/* Check if the contact's certificate was already delivered by
+ * a previous search in the session */
 gboolean session_object_exists (Session *session, EContact *contact, Object **object)
 {
 	EContactCert *cert = NULL;

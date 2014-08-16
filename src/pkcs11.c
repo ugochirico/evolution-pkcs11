@@ -476,12 +476,13 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 	session = session_get_session (hSession);
 
-	if (session->search_on_going) return CKR_OPERATION_ACTIVE;
+	if (session->search_on_going)
+		return CKR_OPERATION_ACTIVE;
 
 	session->search_on_going = TRUE;
 
-	/* Run through template looking for the attributes indicating a
-	 * a search for certificates */
+	/* Run through the template handling attributes related to a
+	 * certificate search*/
 	for (i = 0; i < ulCount; i++) {
 		switch (pTemplate[i].type) {
 			/* Look only to attributes that concerns us */
@@ -600,7 +601,8 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 	session = session_get_session (hSession);
 
-	if (!session->search_on_going) return CKR_OPERATION_NOT_INITIALIZED;
+	if (!session->search_on_going)
+		return CKR_OPERATION_NOT_INITIALIZED;
 
 	if (phObject == NULL_PTR)
 		return CKR_ARGUMENTS_BAD;
@@ -631,7 +633,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 			g_error_free (error);
 		}
 
-		/* Check if cursor is depleated */
+		/* Check if current cursor is depleated */
 		if (n_results < ulMaxObjectCount - n_objects ) {
 			/* Switch to next curson in the list */
 			session->current_cursor = session->cursor_list->next;
@@ -640,7 +642,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		/* Parse results */
 		results_it = results;
 		while (results_it != NULL) {
-			/* Check if we already have an object created for this result */
+			/* Check if we already have an object created for this certificate */
 			obj_exists = session_object_exists (session, results_it->data, &obj);
 
 			if (!obj_exists)
@@ -648,15 +650,17 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 			if (obj != NULL) {
 
+				/* Are we looking for certificates of a specific issuer? */
 				if (session->att_issuer == TRUE && 
 						!compare_object_issuer (obj, &session->search_issuer) ) {
-					/* Check if objects is of a specific issuer */
 					free (obj);
 					results_it = results_it->next;
 					continue;
 				}
 
 				phObject[n_objects] = obj->handle;
+
+				/* Add newly created objects to the list of objects found */
 				if (!obj_exists)
 					session->objects_found = g_slist_append(session->objects_found, obj);
 				n_objects++;

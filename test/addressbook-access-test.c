@@ -22,6 +22,7 @@
 #include <libebook/libebook.h>
 #include <shell/e-shell.h>
 
+/* Test access to Evolution addressbook contacts */
 int main (int argc, char **argv)
 {
 	GError *error = NULL;
@@ -63,7 +64,8 @@ int main (int argc, char **argv)
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
 
-		client_addressbook = (EBookClient *) e_client_cache_get_client_sync (client_cache, (ESource *) aux_addressbooks->data, E_SOURCE_EXTENSION_ADDRESS_BOOK, NULL, &error);
+		client_addressbook = (EBookClient *) e_client_cache_get_client_sync (client_cache,
+				(ESource *) aux_addressbooks->data, E_SOURCE_EXTENSION_ADDRESS_BOOK, NULL, &error);
 
 		status = e_book_client_get_contacts_sync (client_addressbook, query_string, &contacts, NULL, NULL);
 		if (status && contacts != NULL) {
