@@ -425,13 +425,44 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				value_len = 0;
 				break;
 
+				/* trust related */
+			case (CKA_TRUST_EMAIL_PROTECTION):
+				p11_ulong = CKT_NSS_TRUSTED;
+				value = &p11_ulong;
+				value_len = sizeof (CK_ULONG);
+				break;
+
+			case (CKA_TRUST_SERVER_AUTH):
+			case (CKA_TRUST_CLIENT_AUTH):
+			case (CKA_TRUST_CODE_SIGNING):
+				p11_ulong = CKT_NSS_NOT_TRUSTED;
+				value = &p11_ulong;
+				value_len = sizeof (CK_ULONG);
+				break;
+
+			case (CKA_CERT_SHA1_HASH):
+				value = ((Object *)object->data)->sha1;
+				value_len = 20;
+				break;
+
+			case (CKA_CERT_MD5_HASH):
+				value = ((Object *)object->data)->md5;
+				value_len = 16;
+				break;
+
+			case (0xce536360):
+				p11_ulong = 0;
+				value = &p11_ulong;
+				value_len = 1;
+				break;
+
 			default:
 				current_attribute->ulValueLen = (CK_LONG) -1;
 				continue;
 				break;
 		}
 
-		rv = set_attribute_template (current_attribute, value, value_len);
+		rv = util_set_attribute_template (current_attribute, value, value_len);
 	}
 
 	return rv;
@@ -453,12 +484,14 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	GError *error = NULL;
 	gboolean status, att_token = FALSE, att_certificate = FALSE;
 	GList *addressbooks, *aux_addressbooks;
+	GSList *objects_it;
 	EBookClient *client_addressbook;
 	EBookClientCursor *cursor = NULL;
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
 	EBookQuery *final_query, *query = NULL;
 	Session *session = NULL;
+	Object * obj;
 
 	EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
 	EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
@@ -485,8 +518,18 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 				break;
 
 			case CKA_CLASS:
-				if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_CERTIFICATE)
+				if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_CERTIFICATE) {
 					att_certificate = TRUE;
+				} else if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_NSS_TRUST) {
+					session->att_trust = TRUE;
+				}
+
+				break;
+
+			case CKA_SERIAL_NUMBER:
+				session->serial_number.data = malloc(pTemplate[i].ulValueLen);
+				memcpy(session->serial_number.data, pTemplate[i].pValue, pTemplate[i].ulValueLen);
+				session->serial_number.len = pTemplate[i].ulValueLen;
 				break;
 
 			case CKA_LABEL:
@@ -511,7 +554,24 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	}
 
 	/* Check if searching for persistent certificates */
-	if ( !(att_token && att_certificate) ) return CKR_OK;
+	if ( !(att_token && (att_certificate || session->att_trust) ) ) return CKR_OK;
+
+	if (session->att_trust) {
+		objects_it = session->objects_found;
+
+		while (objects_it != NULL) {
+
+			obj = NULL;
+			if (!compare_object_issuer (objects_it->data, &session->search_issuer) && !compare_object_serial (objects_it->data, &session->serial_number) ) {
+				obj = ((Object *)objects_it->data);
+			}
+			if (obj != NULL) {
+				session->trust_objects_found = g_slist_append (session->trust_objects_found, obj);
+			}
+			objects_it = objects_it->next;
+		}
+		return CKR_OK;
+	}
 
 	if (label && email) {
 		query = e_book_query_orv ( 
@@ -606,6 +666,22 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		return CKR_BUFFER_TOO_SMALL;
 
 	n_objects = 0;
+	if (session->att_trust) {
+		results_it = session->trust_objects_found;
+
+		while (n_objects < ulMaxObjectCount && results_it != NULL) {
+
+			if (!compare_object_issuer (results_it->data, &session->search_issuer) && !compare_object_serial (results_it->data, &session->serial_number) ) {
+				phObject[n_objects] = ((Object *)results_it->data)->trust_handle;
+				n_objects++;
+			}
+			results_it = results_it->next;
+		}
+		*pulObjectCount = n_objects;
+		return CKR_OK;
+	}
+
+	n_objects = 0;
 	while (n_objects < ulMaxObjectCount && session->current_cursor != NULL) {
 		results = NULL;
 		cursor = session->current_cursor->data;
@@ -696,6 +772,18 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 		free (session->search_issuer.data);
 		session->search_issuer.data = NULL;
 		session->search_issuer.len = 0;
+	}
+
+	session->att_trust = FALSE;
+	if (session->serial_number.data != NULL)  {
+		free (session->search_issuer.data);
+		session->search_issuer.data = NULL;
+		session->search_issuer.len = 0;
+	}
+
+	if (session->trust_objects_found != NULL) {
+		g_slist_free (session->trust_objects_found);
+		session->trust_objects_found = NULL;
 	}
 
 	return CKR_OK;

@@ -47,6 +47,11 @@ void session_init_session (Session *session)
 	session->search_issuer.data = NULL;
 
 	session->objects_found = NULL;
+
+	session->att_trust = FALSE;
+	session->serial_number.len = 0;
+	session->serial_number.data = NULL;
+	session->trust_objects_found = NULL;
 }
 
 gboolean session_is_session_valid (CK_SESSION_HANDLE hSession)

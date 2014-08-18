@@ -23,7 +23,9 @@
 
 #include <nss3/cert.h>
 #include <nss3/pkcs11n.h>
+#include <glib.h>
 
-CK_RV set_attribute_template (CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG value_len);
+CK_RV util_set_attribute_template (CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG value_len);
 
+CK_RV util_checksum (CK_BYTE_PTR data, CK_ULONG data_len, CK_BYTE_PTR digest, CK_ULONG_PTR digest_len, GChecksumType checksum_type);
 #endif /* __EVO_PKCS11_UTIL_H__ */

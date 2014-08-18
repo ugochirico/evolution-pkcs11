@@ -20,7 +20,7 @@
 
 #include "util.h"
 
-CK_RV set_attribute_template (CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG value_len)
+CK_RV util_set_attribute_template (CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG value_len)
 {
 	CK_RV rv = CKR_OK;
 	if (att->pValue != NULL){
@@ -38,3 +38,20 @@ CK_RV set_attribute_template (CK_ATTRIBUTE_PTR att, CK_VOID_PTR value, CK_ULONG 
 	return rv;
 }
 
+CK_RV util_checksum (CK_BYTE_PTR data, CK_ULONG data_len, CK_BYTE_PTR digest, gsize *digest_len, GChecksumType checksum_type)
+
+{
+	GChecksum *checksum;
+
+	if (*digest_len < g_checksum_type_get_length (checksum_type) )
+		return CKR_BUFFER_TOO_SMALL;
+
+	checksum = g_checksum_new(checksum_type);
+
+	g_checksum_update (checksum, data, data_len);
+	g_checksum_get_digest (checksum, digest, digest_len);
+
+	g_checksum_free (checksum);
+
+	return CKR_OK;
+}

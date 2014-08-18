@@ -29,11 +29,18 @@ typedef struct Object {
 	CK_ULONG handle;
 	SECItem *derCert;
 	CERTCertificate *certificate;
+
+	/* trust related */
+	CK_ULONG trust_handle;
+	CK_BYTE sha1[20];
+	CK_BYTE md5[16];
+
 } Object;
 
 Object *new_object (EContact *contact, CK_ULONG handle);
 
-gboolean compare_object_issuer(Object *obj, SECItem *issuerName) ;
+gboolean compare_object_issuer (Object *obj, SECItem *issuerName) ;
+gboolean compare_object_serial (Object *obj, SECItem *serial_number) ;
 gint object_compare_func (gconstpointer a, gconstpointer b);
 
 void destroy_object (gpointer data);

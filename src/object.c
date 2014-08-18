@@ -19,6 +19,9 @@
  */
 
 #include "object.h"
+#include "util.h"
+
+#define EVOLUTION_PKCS11_TRUST_MASK		0x80000000
 
 Object *new_object (EContact *contact, CK_ULONG handle) 
 {
@@ -27,6 +30,7 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 	SECItem *derCert;
 	SECStatus rv;
 	PRArenaPool *arena = NULL;
+	CK_ULONG digest_size;
 
 	cert = e_contact_get (contact, E_CONTACT_X509_CERT);
 	if (cert == NULL) {
@@ -68,29 +72,56 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 		return NULL;
 	}
 
+	/* trust related */
+	obj->trust_handle = handle | EVOLUTION_PKCS11_TRUST_MASK;
+	digest_size = 20;
+	util_checksum (derCert->data, derCert->len, obj->sha1, &digest_size, G_CHECKSUM_SHA1);
+
+	digest_size = 16;
+	util_checksum (derCert->data, derCert->len, obj->md5, &digest_size, G_CHECKSUM_MD5);
+
 	return obj;
 }
 
-gboolean compare_object_issuer(Object *obj, SECItem *issuerName) 
+gboolean compare_object_issuer (Object *obj, SECItem *issuer_name)
 {
 	SECItem tempder;
-	gboolean rv = FALSE;
+	gboolean rv = TRUE;
 
 	tempder = obj->certificate->derIssuer;	
 
-	if (!memcmp (tempder.data, issuerName->data, MIN(issuerName->len, tempder.len)))
-		rv = TRUE;
+	if (!memcmp (tempder.data, issuer_name->data, MIN(issuer_name->len, tempder.len)))
+		rv = FALSE;
+
+	return rv;
+}
+
+gboolean compare_object_serial (Object *obj, SECItem *serial_number)
+{
+	SECItem tempder;
+	gboolean rv = TRUE;
+
+	tempder = obj->certificate->serialNumber;
+
+	if (!memcmp (tempder.data, serial_number->data, MIN(serial_number->len, tempder.len)))
+		rv = FALSE;
 
 	return rv;
 }
 
 gint object_compare_func (gconstpointer a, gconstpointer b) 
 {
+	Object *obj;
 	CK_ULONG *_a, *_b;
-	_a = (CK_ULONG_PTR) a;
+
+	obj = (Object *) a;
 	_b = (CK_ULONG_PTR) b;
 
-	return (gint) *_a - *_b;
+	if (*_b == obj->handle)
+		return 0;
+	else if (*_b == obj->trust_handle)
+		return 0;
+	return 1;
 }
 
 void destroy_object (gpointer data) 

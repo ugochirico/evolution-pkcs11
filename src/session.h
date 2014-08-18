@@ -35,6 +35,11 @@ typedef struct Session {
 
 	/* Objects that the session knows */
 	GSList *objects_found;
+
+	/* Trust related */
+	gboolean att_trust;
+	SECItem serial_number;
+	GSList *trust_objects_found;
 } Session;
 
 void session_init_all_sessions ();
