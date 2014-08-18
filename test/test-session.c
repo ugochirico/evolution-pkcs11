@@ -29,7 +29,7 @@ void test_session (CK_FUNCTION_LIST_PTR pkcs11, CK_SLOT_ID slotID)
 	CK_ULONG i;
 	CK_RV rv;
 
-	rv = pkcs11->C_CloseSession (session_list[0]);
+	rv = pkcs11->C_CloseSession (18);
 	g_assert (rv == CKR_SESSION_HANDLE_INVALID);
 
 	rv = pkcs11->C_OpenSession (slotID, flags, NULL, NULL, &session_list[0]);

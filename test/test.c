@@ -73,8 +73,7 @@ int main (int argc, char **argv)
 	char character;
 	scanf ("%c", &character);
 
-	// SECMOD_DestroyModule (module);
-	// status = SECMOD_UnloadUserModule (module);
+	status = SECMOD_UnloadUserModule (module);
 	if (status != SECSuccess)
 		fprintf (stderr, "Error unloading module\n");
 
