@@ -20,14 +20,12 @@
 
 #include <stdio.h>
 #include <libebook/libebook.h>
-#include <shell/e-shell.h>
 
 /* Test access to Evolution addressbook contacts */
 int main (int argc, char **argv)
 {
 	GError *error = NULL;
 	ESourceRegistry *registry;
-	EClientCache *client_cache;
 	EBookClient *client_addressbook;
 	GList *addressbooks, *aux_addressbooks;
 	GSList *contacts, *it;
@@ -46,7 +44,6 @@ int main (int argc, char **argv)
 	 
 	registry = e_source_registry_new_sync (NULL, &error);
 
-	client_cache = e_client_cache_new (registry);
 	addressbooks = e_source_registry_list_enabled (registry, E_SOURCE_EXTENSION_ADDRESS_BOOK);
 
 	if (email == NULL) {
@@ -64,8 +61,7 @@ int main (int argc, char **argv)
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
 
-		client_addressbook = (EBookClient *) e_client_cache_get_client_sync (client_cache,
-				(ESource *) aux_addressbooks->data, E_SOURCE_EXTENSION_ADDRESS_BOOK, NULL, &error);
+		client_addressbook = (EBookClient *) e_book_client_connect_sync ((ESource *) aux_addressbooks->data, NULL, &error);
 
 		status = e_book_client_get_contacts_sync (client_addressbook, query_string, &contacts, NULL, NULL);
 		if (status && contacts != NULL) {
