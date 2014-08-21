@@ -78,7 +78,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = addressbook_access_test$(EXEEXT) testmodule$(EXEEXT)
+bin_PROGRAMS = test_app$(EXEEXT) addressbook_access_test$(EXEEXT) \
+	loadtest$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp
@@ -96,14 +97,18 @@ am_addressbook_access_test_OBJECTS =  \
 	addressbook-access-test.$(OBJEXT)
 addressbook_access_test_OBJECTS =  \
 	$(am_addressbook_access_test_OBJECTS)
-addressbook_access_test_LDADD = $(LDADD)
+addressbook_access_test_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-am_testmodule_OBJECTS = test.$(OBJEXT)
-testmodule_OBJECTS = $(am_testmodule_OBJECTS)
-testmodule_DEPENDENCIES = ../src/evolution-pkcs11.la
+am_loadtest_OBJECTS = test.$(OBJEXT)
+loadtest_OBJECTS = $(am_loadtest_OBJECTS)
+loadtest_DEPENDENCIES =
+am_test_app_OBJECTS = test-app.$(OBJEXT) test-session.$(OBJEXT) \
+	test-search.$(OBJEXT) test-attribute-value.$(OBJEXT)
+test_app_OBJECTS = $(am_test_app_OBJECTS)
+test_app_DEPENDENCIES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -138,9 +143,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(addressbook_access_test_SOURCES) $(testmodule_SOURCES)
-DIST_SOURCES = $(addressbook_access_test_SOURCES) \
-	$(testmodule_SOURCES)
+SOURCES = $(addressbook_access_test_SOURCES) $(loadtest_SOURCES) \
+	$(test_app_SOURCES)
+DIST_SOURCES = $(addressbook_access_test_SOURCES) $(loadtest_SOURCES) \
+	$(test_app_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -189,6 +195,8 @@ DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
+EBOOK_CFLAGS = @EBOOK_CFLAGS@
+EBOOK_LIBS = @EBOOK_LIBS@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
@@ -226,6 +234,9 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -285,11 +296,14 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CFLAGS = -Wall -I/usr/include/evolution-data-server -I/usr/lib64/glib-2.0/include -I/usr/include/glib-2.0 -I/usr/include/libsoup-2.4 -I/usr/include/nspr4 -I/usr/include/libxml2 -I/usr/include/evolution-3.10 -I/usr/include/gtk-3.0 -I/usr/include/pango-1.0 -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/atk-1.0 -I/usr/include/libgtkhtml-4.0/editor -I/usr/include/libgtkhtml-4.0 -I/usr/include/webkitgtk-3.0
-AM_LDFLAGS = -L/usr/lib64/evolution/3.10 -levolution-shell -lnss3 -lplc4
+AM_CFLAGS = -Wall -I../src -I/usr/include/evolution-data-server -I/usr/lib64/glib-2.0/include -I/usr/include/glib-2.0 -I/usr/include/libsoup-2.4 -I/usr/include/nspr4 -I/usr/include/libxml2 -I/usr/include/evolution-3.10 -I/usr/include/gtk-3.0 -I/usr/include/pango-1.0 -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/atk-1.0 -I/usr/include/libgtkhtml-4.0/editor -I/usr/include/libgtkhtml-4.0 -I/usr/include/webkitgtk-3.0 -O0 -I/home/yuuma/local/unstable/include/evolution-3.14 
+AM_LDFLAGS = -ldl 
+test_app_SOURCES = test-app.c test-session.c test-search.c test-attribute-value.c
+test_app_LDADD = -lglib-2.0
 addressbook_access_test_SOURCES = addressbook-access-test.c 
-testmodule_SOURCES = test.c
-testmodule_LDADD = ../src/evolution-pkcs11.la
+addressbook_access_test_LDADD = -ledataserver-1.2 -lebook-contacts-1.2  -lebook-1.2 -L/usr/lib64/evolution/3.10 -levolution-util
+loadtest_SOURCES = test.c
+loadtest_LDADD = -lnspr4 -lplc4 -lnss3
 all: all-am
 
 .SUFFIXES:
@@ -378,9 +392,13 @@ addressbook_access_test$(EXEEXT): $(addressbook_access_test_OBJECTS) $(addressbo
 	@rm -f addressbook_access_test$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(addressbook_access_test_OBJECTS) $(addressbook_access_test_LDADD) $(LIBS)
 
-testmodule$(EXEEXT): $(testmodule_OBJECTS) $(testmodule_DEPENDENCIES) $(EXTRA_testmodule_DEPENDENCIES) 
-	@rm -f testmodule$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testmodule_OBJECTS) $(testmodule_LDADD) $(LIBS)
+loadtest$(EXEEXT): $(loadtest_OBJECTS) $(loadtest_DEPENDENCIES) $(EXTRA_loadtest_DEPENDENCIES) 
+	@rm -f loadtest$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(loadtest_OBJECTS) $(loadtest_LDADD) $(LIBS)
+
+test_app$(EXEEXT): $(test_app_OBJECTS) $(test_app_DEPENDENCIES) $(EXTRA_test_app_DEPENDENCIES) 
+	@rm -f test_app$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_app_OBJECTS) $(test_app_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -389,6 +407,10 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/addressbook-access-test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-app.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-attribute-value.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-search.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test-session.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test.Po@am__quote@
 
 .c.o:

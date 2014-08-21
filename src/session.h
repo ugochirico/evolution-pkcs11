@@ -37,6 +37,7 @@ typedef struct Session {
 	GSList *objects_found;
 
 	/* Trust related */
+	gboolean att_certificate;
 	gboolean att_trust;
 	SECItem serial_number;
 	GSList *trust_objects_found;

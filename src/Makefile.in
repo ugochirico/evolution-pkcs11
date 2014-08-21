@@ -119,7 +119,8 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 evolution_pkcs11_la_LIBADD =
-am_evolution_pkcs11_la_OBJECTS = pkcs11.lo
+am_evolution_pkcs11_la_OBJECTS = pkcs11.lo object.lo session.lo \
+	util.lo
 evolution_pkcs11_la_OBJECTS = $(am_evolution_pkcs11_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -213,6 +214,8 @@ DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
+EBOOK_CFLAGS = @EBOOK_CFLAGS@
+EBOOK_LIBS = @EBOOK_LIBS@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
@@ -250,6 +253,9 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -309,9 +315,9 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CFLAGS = -Wall -I/usr/include/nspr4 
+AM_CFLAGS = -Wall
 lib_LTLIBRARIES = evolution-pkcs11.la
-evolution_pkcs11_la_SOURCES = pkcs11.c pkcs11.h pkcs11f.h pkcs11t.h
+evolution_pkcs11_la_SOURCES = pkcs11.c pkcs11.h pkcs11f.h pkcs11t.h object.h object.c session.h session.c util.h util.c
 evolution_pkcs11_la_LDFLAGS = -module
 all: all-am
 
@@ -392,7 +398,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/object.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pkcs11.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/session.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
