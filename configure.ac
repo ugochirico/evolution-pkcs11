@@ -7,6 +7,7 @@ AM_INIT_AUTOMAKE([foreign -Wall])
 AC_CONFIG_SRCDIR([src])
 AM_CONFIG_HEADER([config.h])
 
+PKG_PROG_PKG_CONFIG
 
 # Checks for programs.
 AC_PROG_CXX
@@ -23,8 +24,8 @@ AM_PROG_CC_C_O
 LT_INIT
 
 # Checks for libraries.
-#AC_CHECK_LIB([ebook-1.2],[e_book_client_connect_sync])
-AC_CHECK_LIB([evolution-shell],[e_shell_get_default])
+PKG_CHECK_MODULES(EBOOK, libebook-1.2)
+#PKG_CHECK_MODULES(EVO_SHELL, evolution-shell-3.0)
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h string.h])
