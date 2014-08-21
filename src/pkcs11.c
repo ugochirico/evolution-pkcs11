@@ -354,6 +354,7 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	GSList *object;
 	SECItem *derCert;
 	CERTCertificate *certificate;
+	char *label;
 	CK_VOID_PTR value;
 	CK_ULONG value_len;
 	Session *session = NULL;
@@ -372,6 +373,7 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 
 	derCert = ((Object *)object->data)->derCert;
 	certificate = ((Object *)object->data)->certificate;
+	label = ((Object *)object->data)->label;
 
 	for (i = 0; i < ulCount; i++){
 		current_attribute = &pTemplate[i];
@@ -416,8 +418,8 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				break;
 
 			case (CKA_LABEL):
-				value = NULL_PTR;
-				value_len = 0;
+				value = label;
+				value_len = label ? strlen(label) : 0;
 				break;
 
 			case (CKA_ID):

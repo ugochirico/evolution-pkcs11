@@ -29,6 +29,7 @@ typedef struct Object {
 	CK_ULONG handle;
 	SECItem *derCert;
 	CERTCertificate *certificate;
+	char *label;
 
 	/* trust related */
 	CK_ULONG trust_handle;

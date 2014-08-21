@@ -40,6 +40,7 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 
 	obj = malloc (sizeof (Object));
 	obj->handle = handle;
+	obj->label = e_contact_get(contact, E_CONTACT_EMAIL_1);
 
 	arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
 	obj->certificate = PORT_ArenaZAlloc (arena, sizeof(CERTCertificate));
@@ -130,5 +131,6 @@ void destroy_object (gpointer data)
 
 	SECITEM_FreeItem (obj->derCert, PR_TRUE);
 	CERT_DestroyCertificate (obj->certificate);
+	free (obj->label);
 	free (obj);
 }
