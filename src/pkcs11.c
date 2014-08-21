@@ -482,7 +482,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 {
 	CK_ULONG i;
 	GError *error = NULL;
-	gboolean status, att_token = FALSE, att_certificate = FALSE;
+	gboolean status, att_token = TRUE;
 	GList *addressbooks, *aux_addressbooks;
 	GSList *objects_it;
 	EBookClient *client_addressbook;
@@ -506,6 +506,10 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 	session->search_on_going = TRUE;
 
+	/* By default we return objects of both types */
+	session->att_trust = TRUE;
+	session->att_certificate = TRUE;
+
 	/* Run through the template handling attributes related to a
 	 * certificate search*/
 	for (i = 0; i < ulCount; i++) {
@@ -513,15 +517,15 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 			/* Look only to attributes that concerns us */
 
 			case CKA_TOKEN:
-				if (*( (CK_BBOOL *)pTemplate[i].pValue) == CK_TRUE)
-					att_token = TRUE;
+				if (*( (CK_BBOOL *)pTemplate[i].pValue) == CK_FALSE)
+					att_token = FALSE;
 				break;
 
 			case CKA_CLASS:
 				if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_CERTIFICATE) {
-					att_certificate = TRUE;
+					session->att_trust = FALSE;
 				} else if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_NSS_TRUST) {
-					session->att_trust = TRUE;
+					session->att_certificate = FALSE;
 				}
 
 				break;
@@ -554,7 +558,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	}
 
 	/* Check if searching for persistent certificates */
-	if ( !(att_token && (att_certificate || session->att_trust) ) ) return CKR_OK;
+	if ( !(att_token && (session->att_certificate || session->att_trust) ) ) return CKR_OK;
 
 	if (session->att_trust) {
 		objects_it = session->objects_found;
@@ -570,7 +574,8 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 			}
 			objects_it = objects_it->next;
 		}
-		return CKR_OK;
+		if (!session->att_certificate)
+			return CKR_OK;
 	}
 
 	if (label && email) {
@@ -677,11 +682,12 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 			}
 			results_it = results_it->next;
 		}
-		*pulObjectCount = n_objects;
-		return CKR_OK;
+		if (!session->att_certificate) {
+			*pulObjectCount = n_objects;
+			return CKR_OK;
+		}
 	}
 
-	n_objects = 0;
 	while (n_objects < ulMaxObjectCount && session->current_cursor != NULL) {
 		results = NULL;
 		cursor = session->current_cursor->data;
