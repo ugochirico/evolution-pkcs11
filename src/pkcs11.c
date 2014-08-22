@@ -528,8 +528,12 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 					session->att_trust = FALSE;
 				} else if (*( (CK_ATTRIBUTE_TYPE *)pTemplate[i].pValue) == CKO_NSS_TRUST) {
 					session->att_certificate = FALSE;
+				} else {
+					/* You want another type of object?
+					   We don't have any of those. */
+					session->att_trust = FALSE;
+					session->att_certificate = FALSE;
 				}
-
 				break;
 
 			case CKA_SERIAL_NUMBER:
