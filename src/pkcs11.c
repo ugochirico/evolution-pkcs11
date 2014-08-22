@@ -614,7 +614,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 		if (client_addressbook == NULL) {
 			g_warning ("evolution-pkcs11: Failed to connect to addressbook: %s\n", error->message);
 			g_error_free (error);
-
+			error = NULL;
 			aux_addressbooks = aux_addressbooks->next;
 			continue;
 		}
@@ -623,7 +623,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 		if (status != TRUE) {
 			g_warning ("evolution-pkcs11: Failed to get cursor from addressbook: %s\n", error->message);
 			g_error_free (error);
-
+			error = NULL;
 			aux_addressbooks = aux_addressbooks->next;
 			continue;
 		}
@@ -717,6 +717,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 				/* The negative result of n_results will imply in moving to the next cursor in the list */
 			}
 			g_error_free (error);
+			error = NULL;
 		}
 
 		/* Check if current cursor is depleated */
