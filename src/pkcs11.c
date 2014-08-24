@@ -729,7 +729,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		}
 
 		/* Check if current cursor is depleated */
-		if (n_results < ulMaxObjectCount - n_objects ) {
+		if (n_results < 0 || n_results < ulMaxObjectCount - n_objects ) {
 			/* Switch to next curson in the list */
 			session->current_cursor = session->current_cursor->next;
 		}
