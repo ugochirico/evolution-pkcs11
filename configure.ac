@@ -25,7 +25,8 @@ LT_INIT
 
 # Checks for libraries.
 PKG_CHECK_MODULES(EBOOK, libebook-1.2)
-#PKG_CHECK_MODULES(EVO_SHELL, evolution-shell-3.0)
+PKG_CHECK_MODULES(NSS, nss)
+PKG_CHECK_MODULES(GLIB, glib-2.0)
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h string.h])
