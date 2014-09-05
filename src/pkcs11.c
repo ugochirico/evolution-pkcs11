@@ -610,12 +610,23 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
 
-		client_addressbook = (EBookClient *) e_book_client_connect_sync((ESource *) aux_addressbooks->data, NULL, &error);
+		/* Try to connect using DRA */
+		client_addressbook = (EBookClient *) e_book_client_connect_direct_sync (registry,
+				(ESource *) aux_addressbooks->data, NULL, &error);
 		if (client_addressbook == NULL) {
-			g_warning ("evolution-pkcs11: Failed to connect to addressbook: %s\n", error->message);
+			g_warning ("evolution-pkcs11: Failed to connect directly to addressbook: %s\n", error->message);
 			g_clear_error (&error);
-			aux_addressbooks = aux_addressbooks->next;
-			continue;
+		}
+
+		if (client_addressbook == NULL) {
+			/* Connect the usual way if DRA is not available */
+			client_addressbook = (EBookClient *) e_book_client_connect_sync((ESource *) aux_addressbooks->data, NULL, &error);
+			if (client_addressbook == NULL) {
+				g_warning ("evolution-pkcs11: Failed to connect to addressbook: %s\n", error->message);
+				g_clear_error (&error);
+				aux_addressbooks = aux_addressbooks->next;
+				continue;
+			}
 		}
 
 		status = e_book_client_get_cursor_sync (client_addressbook, query_string, sort_fields, sort_types, 2, &cursor, NULL, &error);
