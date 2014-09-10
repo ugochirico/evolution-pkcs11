@@ -25,6 +25,8 @@
 #include <libebook/libebook.h>
 #include <glib.h>
 
+#define EVOLUTION_PKCS11_TRUST_MASK		0x80000000
+
 typedef struct Object {
 	CK_ULONG handle;
 	SECItem *derCert;

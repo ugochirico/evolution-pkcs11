@@ -21,8 +21,6 @@
 #include "object.h"
 #include "util.h"
 
-#define EVOLUTION_PKCS11_TRUST_MASK		0x80000000
-
 Object *new_object (EContact *contact, CK_ULONG handle) 
 {
 	Object *obj;
