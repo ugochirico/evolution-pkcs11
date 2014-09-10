@@ -34,13 +34,15 @@ typedef struct Session {
 	SECItem search_issuer;
 
 	/* Objects that the session knows */
-	GSList *objects_found;
+	GHashTable *objects_handle;
+	GHashTable *objects_sha1;
+	GHashTable *objects_issuer;
 
 	/* Trust related */
 	gboolean att_certificate;
 	gboolean att_trust;
 	SECItem serial_number;
-	GSList *trust_objects_found;
+	GSList *trust_objects_from_issuer;
 } Session;
 
 void session_init_all_sessions ();

@@ -19,10 +19,75 @@
  */
 
 #include "session.h"
+#include "util.h"
 #include <string.h>
 
 #define EVOLUTION_PKCS11_MAX_SESSION_NUMBER 16
 #define EVOLUTION_PKCS11_SESSION_MASK		0x80000000
+
+
+guint sha1_hash (gconstpointer key)
+{
+	gsize digest_len = 20;
+	CK_BYTE_PTR sha1 = (CK_BYTE_PTR) key;
+	CK_BYTE hash[digest_len];
+	guint sha1_hash;
+
+	util_checksum (sha1, 20, hash, &digest_len, G_CHECKSUM_SHA1);
+
+	memcpy (&sha1_hash, hash, sizeof (sha1_hash));
+	return sha1_hash;
+}
+
+gboolean sha1_equal (gconstpointer a, gconstpointer b)
+{
+	gboolean equal = TRUE;
+	CK_BYTE_PTR hash_a, hash_b;
+
+	hash_a = (CK_BYTE_PTR) a;
+	hash_b = (CK_BYTE_PTR) b;
+
+	if (memcmp (hash_a, hash_b, 20))
+		equal = FALSE;
+
+	return equal;
+}
+
+guint secitem_hash (gconstpointer key)
+{
+	gsize digest_len = 20;
+	SECItem *secitem;
+	CK_BYTE hash[digest_len];
+	guint secitem_hash;
+
+	secitem = (SECItem *) key;
+	util_checksum (secitem->data, secitem->len, hash, &digest_len, G_CHECKSUM_SHA1);
+
+	memcpy (&secitem_hash, hash, sizeof (secitem_hash));
+	return secitem_hash;
+}
+
+gboolean secitem_equal (gconstpointer a, gconstpointer b)
+{
+	gboolean equal = TRUE;
+	SECItem *secitem_a, *secitem_b;
+
+	secitem_a = (SECItem *) a;
+	secitem_b = (SECItem *) b;
+
+	if (memcmp (secitem_a->data, secitem_b->data, MIN (secitem_a->len, secitem_b->len) ))
+		equal = FALSE;
+	return equal;
+}
+
+gboolean destroy_objects_issuer_list (gpointer key, gpointer value, gpointer user_data)
+{
+	GSList *list;
+
+	list = (GSList *) value;
+	g_slist_free (list);
+	return TRUE;
+}
 
 Session session_list[EVOLUTION_PKCS11_MAX_SESSION_NUMBER];
 
@@ -46,12 +111,14 @@ void session_init_session (Session *session)
 	session->search_issuer.len = 0;
 	session->search_issuer.data = NULL;
 
-	session->objects_found = NULL;
+	session->objects_handle = NULL;
+	session->objects_sha1 = NULL;
+	session->objects_issuer = NULL;
 
 	session->att_trust = FALSE;
 	session->serial_number.len = 0;
 	session->serial_number.data = NULL;
-	session->trust_objects_found = NULL;
+	session->trust_objects_from_issuer = NULL;
 }
 
 gboolean session_is_session_valid (CK_SESSION_HANDLE hSession)
@@ -74,6 +141,10 @@ Session *session_open_session ()
 		if (session_list[i].handle == 0){
 			session = &session_list[i];
 			session->handle = i | EVOLUTION_PKCS11_SESSION_MASK;
+
+			session->objects_handle = g_hash_table_new (g_int_hash, g_int_equal);
+			session->objects_sha1 = g_hash_table_new_full (sha1_hash, sha1_equal, NULL, destroy_object);
+			session->objects_issuer = g_hash_table_new (secitem_hash, secitem_equal);
 		}
 		i++;
 	}
@@ -107,41 +178,41 @@ void session_close_session (CK_SESSION_HANDLE hSession)
 
 	session = &session_list[i];
 
-	if (session->objects_found != NULL) {
-		g_slist_free_full (session->objects_found, destroy_object);
-		session->objects_found = NULL;
+	if (session->objects_handle)
+		g_hash_table_destroy (session->objects_handle);
+
+	if (session->objects_sha1)
+		g_hash_table_destroy (session->objects_sha1);
+
+	if (session->objects_issuer) {
+		g_hash_table_foreach_remove (session->objects_issuer, destroy_objects_issuer_list, NULL);
+		g_hash_table_destroy (session->objects_issuer);
 	}
 
 	session_init_session (session);
 }
 
-/* Check if the contact's certificate was already delivered by
+/* Check if the contact's certificate has already been delivered by
  * a previous search in the session */
 gboolean session_object_exists (Session *session, EContact *contact, Object **object)
 {
 	EContactCert *cert = NULL;
-	Object *obj;
-	GSList *list;
 	gboolean found = FALSE;
+	CK_ULONG sha1_size = 20;
+	CK_BYTE sha1[sha1_size];
 
-	if (contact == NULL) return FALSE;
-	if (session == NULL) return FALSE;
+	if (contact == NULL) return found;
+	if (session == NULL) return found;
 
 	cert = e_contact_get (contact, E_CONTACT_X509_CERT);
 	if (cert == NULL) {
 		return found;
 	}
 
-	list = session->objects_found;
-	while (list != NULL) {
-		obj = (Object*) list->data;
-		if (!memcmp (cert->data, obj->derCert->data, MIN (cert->length, obj->derCert->len))) {
-			*object = obj;
-			found = TRUE;
-			break;
-		}
-		list = list->next;
-	}
+	util_checksum ((CK_BYTE_PTR) cert->data, cert->length, sha1, &sha1_size, G_CHECKSUM_SHA1);
+	*object = (Object *) g_hash_table_lookup (session->objects_sha1, &sha1);
+	if (*object != NULL)
+		found = TRUE;
 
 	e_contact_cert_free (cert);
 

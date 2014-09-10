@@ -351,7 +351,8 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 	CK_RV rv = CKR_OK;
 	CK_ULONG i;
 	CK_ATTRIBUTE_PTR current_attribute;
-	GSList *object;
+	CK_OBJECT_HANDLE aux_object_handle;
+	Object *object;
 	SECItem *derCert;
 	CERTCertificate *certificate;
 	char *label;
@@ -367,13 +368,18 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 
 	session = session_get_session (hSession);
 
-	object = g_slist_find_custom (session->objects_found, &hObject, object_compare_func);
+	object = g_hash_table_lookup (session->objects_handle, &hObject);
+
+	if (object == NULL) {
+		aux_object_handle = ~EVOLUTION_PKCS11_TRUST_MASK & hObject;
+		object = g_hash_table_lookup (session->objects_handle, &aux_object_handle);
+	}
 	
 	if (object == NULL) return CKR_OBJECT_HANDLE_INVALID;
 
-	derCert = ((Object *)object->data)->derCert;
-	certificate = ((Object *)object->data)->certificate;
-	label = ((Object *)object->data)->label;
+	derCert = object->derCert;
+	certificate = object->certificate;
+	label = object->label;
 
 	for (i = 0; i < ulCount; i++){
 		current_attribute = &pTemplate[i];
@@ -443,12 +449,12 @@ CK_RV C_GetAttributeValue (CK_SESSION_HANDLE hSession,
 				break;
 
 			case (CKA_CERT_SHA1_HASH):
-				value = ((Object *)object->data)->sha1;
+				value = object->sha1;
 				value_len = 20;
 				break;
 
 			case (CKA_CERT_MD5_HASH):
-				value = ((Object *)object->data)->md5;
+				value = object->md5;
 				value_len = 16;
 				break;
 
@@ -486,14 +492,12 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	GError *error = NULL;
 	gboolean status, att_token = TRUE;
 	GList *addressbooks, *aux_addressbooks;
-	GSList *objects_it;
 	EBookClient *client_addressbook;
 	EBookClientCursor *cursor = NULL;
 	gchar *query_string;
 	gchar *label = NULL, *email = NULL;
 	EBookQuery *final_query, *query = NULL;
 	Session *session = NULL;
-	Object * obj;
 
 	EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
 	EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
@@ -556,6 +560,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 			case CKA_ISSUER:
 				session->att_issuer = TRUE;
+				session->search_issuer.type = siBuffer;
 				session->search_issuer.data = malloc(pTemplate[i].ulValueLen);
 				memcpy(session->search_issuer.data, pTemplate[i].pValue, pTemplate[i].ulValueLen);
 				session->search_issuer.len = pTemplate[i].ulValueLen;
@@ -567,19 +572,8 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	if ( !(att_token && (session->att_certificate || session->att_trust) ) ) return CKR_OK;
 
 	if (session->att_trust) {
-		objects_it = session->objects_found;
+		session->trust_objects_from_issuer = g_hash_table_lookup (session->objects_issuer, &session->search_issuer);
 
-		while (objects_it != NULL) {
-
-			obj = NULL;
-			if (!compare_object_issuer (objects_it->data, &session->search_issuer) && !compare_object_serial (objects_it->data, &session->serial_number) ) {
-				obj = ((Object *)objects_it->data);
-			}
-			if (obj != NULL) {
-				session->trust_objects_found = g_slist_append (session->trust_objects_found, obj);
-			}
-			objects_it = objects_it->next;
-		}
 		if (!session->att_certificate)
 			return CKR_OK;
 	}
@@ -663,6 +657,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	gint n_results, n_objects;
 	EBookClientCursor *cursor;
 	GSList *results = NULL, *results_it;
+	GSList *objects_issuer_list = NULL;
 	Object *obj;
 	gboolean obj_exists;
 	GError *error = NULL;
@@ -687,11 +682,11 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 	n_objects = 0;
 	if (session->att_trust) {
-		results_it = session->trust_objects_found;
+		results_it = session->trust_objects_from_issuer;
 
 		while (n_objects < ulMaxObjectCount && results_it != NULL) {
 
-			if (!compare_object_issuer (results_it->data, &session->search_issuer) && !compare_object_serial (results_it->data, &session->serial_number) ) {
+			if (!compare_object_serial (results_it->data, &session->serial_number) ) {
 				phObject[n_objects] = ((Object *)results_it->data)->trust_handle;
 				n_objects++;
 			}
@@ -755,9 +750,18 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 				phObject[n_objects] = obj->handle;
 
-				/* Add newly created objects to the list of objects found */
-				if (!obj_exists)
-					session->objects_found = g_slist_append(session->objects_found, obj);
+				/* Add newly created object to hash tables */
+				if (!obj_exists) {
+					g_hash_table_insert (session->objects_handle, &obj->handle, obj);
+
+					g_hash_table_insert (session->objects_sha1, &obj->sha1, obj);
+
+					/* It does not matter if the returned list is empty
+					 * Also, on replace the list does not need to be freed */
+					objects_issuer_list = g_hash_table_lookup (session->objects_issuer, &obj->certificate->derIssuer);
+					objects_issuer_list = g_slist_append (objects_issuer_list, obj);
+					g_hash_table_insert (session->objects_issuer, &obj->certificate->derIssuer, objects_issuer_list);
+				}
 				n_objects++;
 			}
 			results_it = results_it->next;
@@ -802,9 +806,8 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 		session->search_issuer.len = 0;
 	}
 
-	if (session->trust_objects_found != NULL) {
-		g_slist_free (session->trust_objects_found);
-		session->trust_objects_found = NULL;
+	if (session->trust_objects_from_issuer != NULL) {
+		session->trust_objects_from_issuer = NULL;
 	}
 
 	return CKR_OK;
