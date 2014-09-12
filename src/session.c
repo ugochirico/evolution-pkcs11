@@ -191,30 +191,3 @@ void session_close_session (CK_SESSION_HANDLE hSession)
 
 	session_init_session (session);
 }
-
-/* Check if the contact's certificate has already been delivered by
- * a previous search in the session */
-gboolean session_object_exists (Session *session, EContact *contact, Object **object)
-{
-	EContactCert *cert = NULL;
-	gboolean found = FALSE;
-	CK_ULONG sha1_size = 20;
-	CK_BYTE sha1[sha1_size];
-
-	if (contact == NULL) return found;
-	if (session == NULL) return found;
-
-	cert = e_contact_get (contact, E_CONTACT_X509_CERT);
-	if (cert == NULL) {
-		return found;
-	}
-
-	util_checksum ((CK_BYTE_PTR) cert->data, cert->length, sha1, &sha1_size, G_CHECKSUM_SHA1);
-	*object = (Object *) g_hash_table_lookup (session->objects_sha1, &sha1);
-	if (*object != NULL)
-		found = TRUE;
-
-	e_contact_cert_free (cert);
-
-	return found;
-}

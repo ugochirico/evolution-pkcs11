@@ -53,6 +53,4 @@ Session *session_get_session (CK_SESSION_HANDLE hSession);
 void session_close_session (CK_SESSION_HANDLE hSession);
 void session_close_all_sessions (CK_SLOT_ID slotID);
 
-gboolean session_object_exists (Session *session, EContact *contact, Object **object);
-
 #endif /* __EVO_PKCS11_SESSION_H__ */

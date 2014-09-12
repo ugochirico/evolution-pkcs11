@@ -21,20 +21,26 @@
 #include "object.h"
 #include "util.h"
 
-Object *new_object (EContact *contact, CK_ULONG handle) 
+Object *get_or_create_object (GHashTable *objects_sha1, EContact *contact, CK_ULONG handle, gboolean *is_object_new)
 {
 	Object *obj;
 	EContactCert *cert;
 	SECItem *derCert;
 	SECStatus rv;
 	PRArenaPool *arena = NULL;
-	CK_ULONG digest_size;
+	CK_ULONG digest_size = 20;
+	CK_BYTE sha1 [digest_size];
 
 	cert = e_contact_get (contact, E_CONTACT_X509_CERT);
 	if (cert == NULL) {
 		g_warning ("evolution-pkcs11: Could not get contact's certificate.\n");
 		return NULL;
 	}
+
+	util_checksum ((CK_BYTE_PTR) cert->data, cert->length, sha1, &digest_size, G_CHECKSUM_SHA1);
+	obj = (Object *) g_hash_table_lookup (objects_sha1, &sha1);
+	if (obj != NULL)
+		return obj;
 
 	obj = malloc (sizeof (Object));
 	obj->handle = handle;
@@ -73,8 +79,9 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 
 	/* trust related */
 	obj->trust_handle = handle | EVOLUTION_PKCS11_TRUST_MASK;
-	digest_size = 20;
-	util_checksum (derCert->data, derCert->len, obj->sha1, &digest_size, G_CHECKSUM_SHA1);
+	memcpy (obj->sha1, sha1, digest_size);
+	// digest_size = 20;
+	// util_checksum (derCert->data, derCert->len, obj->sha1, &digest_size, G_CHECKSUM_SHA1);
 
 	digest_size = 16;
 	util_checksum (derCert->data, derCert->len, obj->md5, &digest_size, G_CHECKSUM_MD5);

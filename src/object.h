@@ -40,7 +40,7 @@ typedef struct Object {
 
 } Object;
 
-Object *new_object (EContact *contact, CK_ULONG handle);
+Object *get_or_create_object (GHashTable *objects_sha1, EContact *contact, CK_ULONG handle, gboolean *is_object_new);
 
 gboolean compare_object_issuer (Object *obj, SECItem *issuerName) ;
 gboolean compare_object_serial (Object *obj, SECItem *serial_number) ;

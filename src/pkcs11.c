@@ -659,7 +659,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	GSList *results = NULL, *results_it;
 	GSList *objects_issuer_list = NULL;
 	Object *obj;
-	gboolean obj_exists;
+	gboolean is_object_new;
 	GError *error = NULL;
 	Session *session = NULL;
 
@@ -733,10 +733,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 		results_it = results;
 		while (results_it != NULL) {
 			/* Check if we already have an object created for this certificate */
-			obj_exists = session_object_exists (session, results_it->data, &obj);
-
-			if (!obj_exists)
-				obj = new_object (results_it->data, object_handle_counter++);
+			obj = get_or_create_object (session->objects_sha1, results_it->data, object_handle_counter++, &is_object_new);
 
 			if (obj != NULL) {
 
@@ -751,7 +748,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 				phObject[n_objects] = obj->handle;
 
 				/* Add newly created object to hash tables */
-				if (!obj_exists) {
+				if (!is_object_new) {
 					g_hash_table_insert (session->objects_handle, &obj->handle, obj);
 
 					g_hash_table_insert (session->objects_sha1, &obj->sha1, obj);
