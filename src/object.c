@@ -82,6 +82,19 @@ Object *new_object (EContact *contact, CK_ULONG handle)
 	return obj;
 }
 
+gboolean compare_object_issuer (Object *obj, SECItem *issuer_name)
+{
+	SECItem tempder;
+	gboolean rv = TRUE;
+
+	tempder = obj->certificate->derIssuer;	
+
+	if (!memcmp (tempder.data, issuer_name->data, MIN(issuer_name->len, tempder.len)))
+		rv = FALSE;
+
+	return rv;
+}
+
 gboolean compare_object_serial (Object *obj, SECItem *serial_number)
 {
 	SECItem tempder;
@@ -93,6 +106,21 @@ gboolean compare_object_serial (Object *obj, SECItem *serial_number)
 		rv = FALSE;
 
 	return rv;
+}
+
+gint object_compare_func (gconstpointer a, gconstpointer b) 
+{
+	Object *obj;
+	CK_ULONG *_a, *_b;
+
+	obj = (Object *) a;
+	_b = (CK_ULONG_PTR) b;
+
+	if (*_b == obj->handle)
+		return 0;
+	else if (*_b == obj->trust_handle)
+		return 0;
+	return 1;
 }
 
 void destroy_object (gpointer data) 
