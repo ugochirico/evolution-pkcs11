@@ -756,7 +756,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 					/* It does not matter if the returned list is empty
 					 * Also, on replace the list does not need to be freed */
 					objects_issuer_list = g_hash_table_lookup (session->objects_issuer, &obj->certificate->derIssuer);
-					objects_issuer_list = g_slist_append (objects_issuer_list, obj);
+					objects_issuer_list = g_slist_prepend (objects_issuer_list, obj);
 					g_hash_table_insert (session->objects_issuer, &obj->certificate->derIssuer, objects_issuer_list);
 				}
 				n_objects++;
