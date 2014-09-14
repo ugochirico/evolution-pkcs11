@@ -748,7 +748,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 				phObject[n_objects] = obj->handle;
 
 				/* Add newly created object to hash tables */
-				if (!is_object_new) {
+				if (is_object_new) {
 					g_hash_table_insert (session->objects_handle, &obj->handle, obj);
 
 					g_hash_table_insert (session->objects_sha1, &obj->sha1, obj);

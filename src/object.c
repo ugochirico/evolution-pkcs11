@@ -39,8 +39,10 @@ Object *get_or_create_object (GHashTable *objects_sha1, EContact *contact, CK_UL
 
 	util_checksum ((CK_BYTE_PTR) cert->data, cert->length, sha1, &digest_size, G_CHECKSUM_SHA1);
 	obj = (Object *) g_hash_table_lookup (objects_sha1, &sha1);
-	if (obj != NULL)
+	if (obj != NULL) {
+		*is_object_new = FALSE;
 		return obj;
+	}
 
 	obj = malloc (sizeof (Object));
 	obj->handle = handle;
@@ -86,6 +88,7 @@ Object *get_or_create_object (GHashTable *objects_sha1, EContact *contact, CK_UL
 	digest_size = 16;
 	util_checksum (derCert->data, derCert->len, obj->md5, &digest_size, G_CHECKSUM_MD5);
 
+	*is_object_new = TRUE;
 	return obj;
 }
 
