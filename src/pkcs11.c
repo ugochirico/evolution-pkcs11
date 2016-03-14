@@ -684,6 +684,7 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	n_objects = 0;
 	if (session->att_trust) {
 		GHashTable *trusts = session->trust_objects_from_issuer;
+		GHashTableIter *trusts_iter;
 
 		/* We optimise for the case where we want to match a specific
 		   serial number. NSS does that a lot. */
@@ -694,10 +695,16 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 				phObject[n_objects++] = obj->trust_handle;
 			}
 		} else {
-			/* FIXME */
-			//while (n_objects < ulMaxObjectCount && results_it != NULL) {
-			//			}
-			printf("All trusts for issuer?\n");
+			/* Return all trust objects for issuer */
+			if (!session->iterating_trust_objects) {
+				session->iterating_trust_objects = TRUE;
+				g_hash_table_iter_init(&session->trust_objects_iter, trusts);
+			}
+			trusts_iter = &session->trust_objects_iter;
+			while (n_objects < ulMaxObjectCount &&
+					g_hash_table_iter_next(trusts_iter, NULL, (gpointer *) &obj)) {
+				phObject[n_objects++] = obj->trust_handle;
+			}
 		}
 		if (!session->att_certificate) {
 			*pulObjectCount = n_objects;
@@ -816,6 +823,7 @@ CK_RV C_FindObjectsFinal (CK_SESSION_HANDLE hSession)
 
 	if (session->trust_objects_from_issuer != NULL) {
 		session->trust_objects_from_issuer = NULL;
+		session->iterating_trust_objects = FALSE;
 	}
 
 	return CKR_OK;

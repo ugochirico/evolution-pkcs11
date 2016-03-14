@@ -43,6 +43,8 @@ typedef struct Session {
 	gboolean att_trust;
 	SECItem serial_number;
 	GHashTable *trust_objects_from_issuer;
+	gboolean iterating_trust_objects;
+	GHashTableIter trust_objects_iter;
 } Session;
 
 void session_init_all_sessions ();
