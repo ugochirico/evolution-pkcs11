@@ -119,6 +119,7 @@ void session_init_session (Session *session)
 	session->serial_number.len = 0;
 	session->serial_number.data = NULL;
 	session->trust_objects_from_issuer = NULL;
+	session->iterating_trust_objects = FALSE;
 }
 
 gboolean session_is_session_valid (CK_SESSION_HANDLE hSession)
