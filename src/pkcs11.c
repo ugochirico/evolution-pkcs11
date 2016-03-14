@@ -499,7 +499,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 	EBookQuery *final_query, *query = NULL;
 	Session *session = NULL;
 
-	EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
+	EContactField sort_fields[] = { E_CONTACT_GIVEN_NAME };
 	EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
 
 	if (!session_is_session_valid (hSession))
@@ -606,7 +606,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 		/* Try to connect using DRA */
 		client_addressbook = (EBookClient *) e_book_client_connect_direct_sync (registry,
-				(ESource *) aux_addressbooks->data, NULL, &error);
+											(ESource *) aux_addressbooks->data, (guint32) -1, NULL, &error);
 		if (client_addressbook == NULL) {
 			g_warning ("evolution-pkcs11: Failed to connect directly to addressbook: %s\n", error->message);
 			g_clear_error (&error);
@@ -614,7 +614,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 		if (client_addressbook == NULL) {
 			/* Connect the usual way if DRA is not available */
-			client_addressbook = (EBookClient *) e_book_client_connect_sync((ESource *) aux_addressbooks->data, NULL, &error);
+			client_addressbook = (EBookClient *) e_book_client_connect_sync((ESource *) aux_addressbooks->data, (guint32) -1, NULL, &error);
 			if (client_addressbook == NULL) {
 				g_warning ("evolution-pkcs11: Failed to connect to addressbook: %s\n", error->message);
 				g_clear_error (&error);
@@ -623,7 +623,7 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 			}
 		}
 
-		status = e_book_client_get_cursor_sync (client_addressbook, query_string, sort_fields, sort_types, 2, &cursor, NULL, &error);
+		status = e_book_client_get_cursor_sync (client_addressbook, query_string, sort_fields, sort_types, 1, &cursor, NULL, &error);
 		if (status != TRUE) {
 			g_warning ("evolution-pkcs11: Failed to get cursor from addressbook: %s\n", error->message);
 			g_clear_error (&error);
@@ -647,6 +647,8 @@ CK_RV C_FindObjectsInit (CK_SESSION_HANDLE hSession,
 
 	return CKR_OK;
 }
+guint secitem_hash (gconstpointer key);
+gboolean secitem_equal (gconstpointer a, gconstpointer b);
 
 
 CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
@@ -657,7 +659,6 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 	gint n_results, n_objects;
 	EBookClientCursor *cursor;
 	GSList *results = NULL, *results_it;
-	GSList *objects_issuer_list = NULL;
 	Object *obj;
 	gboolean is_object_new;
 	GError *error = NULL;
@@ -682,15 +683,21 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 	n_objects = 0;
 	if (session->att_trust) {
-		results_it = session->trust_objects_from_issuer;
+		GHashTable *trusts = session->trust_objects_from_issuer;
 
-		while (n_objects < ulMaxObjectCount && results_it != NULL) {
-
-			if (!compare_object_serial (results_it->data, &session->serial_number) ) {
-				phObject[n_objects] = ((Object *)results_it->data)->trust_handle;
-				n_objects++;
+		/* We optimise for the case where we want to match a specific
+		   serial number. NSS does that a lot. */
+		if (!trusts) {
+		} else if (session->serial_number.len) {
+			obj = g_hash_table_lookup(trusts, &session->serial_number);
+			if (obj) {
+				phObject[n_objects++] = obj->trust_handle;
 			}
-			results_it = results_it->next;
+		} else {
+			/* FIXME */
+			//while (n_objects < ulMaxObjectCount && results_it != NULL) {
+			//			}
+			printf("All trusts for issuer?\n");
 		}
 		if (!session->att_certificate) {
 			*pulObjectCount = n_objects;
@@ -749,15 +756,19 @@ CK_RV C_FindObjects (CK_SESSION_HANDLE hSession,
 
 				/* Add newly created object to hash tables */
 				if (is_object_new) {
+					GHashTable *objects_issuer_hash = NULL;
+
 					g_hash_table_insert (session->objects_handle, &obj->handle, obj);
 
 					g_hash_table_insert (session->objects_sha1, &obj->sha1, obj);
 
-					/* It does not matter if the returned list is empty
-					 * Also, on replace the list does not need to be freed */
-					objects_issuer_list = g_hash_table_lookup (session->objects_issuer, &obj->certificate->derIssuer);
-					objects_issuer_list = g_slist_prepend (objects_issuer_list, obj);
-					g_hash_table_insert (session->objects_issuer, &obj->certificate->derIssuer, objects_issuer_list);
+					objects_issuer_hash = g_hash_table_lookup (session->objects_issuer, &obj->certificate->derIssuer);
+					if (!objects_issuer_hash) {
+						objects_issuer_hash = g_hash_table_new(secitem_hash, secitem_equal);
+						g_hash_table_insert (session->objects_issuer, &obj->certificate->derIssuer, objects_issuer_hash);
+					}
+					g_hash_table_insert (objects_issuer_hash, &obj->certificate->serialNumber, obj);
+
 				}
 				n_objects++;
 			}

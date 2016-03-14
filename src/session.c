@@ -82,10 +82,10 @@ gboolean secitem_equal (gconstpointer a, gconstpointer b)
 
 gboolean destroy_objects_issuer_list (gpointer key, gpointer value, gpointer user_data)
 {
-	GSList *list;
+	GHashTable *table;
 
-	list = (GSList *) value;
-	g_slist_free (list);
+	table = (GHashTable *) value;
+	g_hash_table_destroy(table);
 	return TRUE;
 }
 

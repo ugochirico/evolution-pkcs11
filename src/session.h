@@ -42,7 +42,7 @@ typedef struct Session {
 	gboolean att_certificate;
 	gboolean att_trust;
 	SECItem serial_number;
-	GSList *trust_objects_from_issuer;
+	GHashTable *trust_objects_from_issuer;
 } Session;
 
 void session_init_all_sessions ();

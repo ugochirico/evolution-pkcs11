@@ -61,7 +61,7 @@ int main (int argc, char **argv)
 	aux_addressbooks = addressbooks;
 	while (aux_addressbooks != NULL) {
 
-		client_addressbook = (EBookClient *) e_book_client_connect_sync ((ESource *) aux_addressbooks->data, NULL, &error);
+		client_addressbook = (EBookClient *) e_book_client_connect_sync ((ESource *) aux_addressbooks->data, (guint32)-1, NULL, &error);
 
 		status = e_book_client_get_contacts_sync (client_addressbook, query_string, &contacts, NULL, NULL);
 		if (status && contacts != NULL) {
